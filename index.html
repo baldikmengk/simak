@@ -29,6 +29,7 @@
     getRekapMBG: 1, getRekapAdiwiyata: 1, getKegiatanPublik: 1, getLaporanKegiatan: 1, getJumlahDokumentasi: 1, getPesertaKegiatan: 1, getRekapBoarding: 1, getPetaSekolah: 1, getInfoPembaruanData: 1,
     getDaftarPembanding: 1, getRekapLulusanLaporan: 1, getRekapTracerStudy: 1, getAppLainnya: 1
   };
+  var FS_PER_ID = { getDetailSekolah: 1, getJurusanSekolah: 1, getRekapPTKSekolah: 1, getFormasiBangkuSMK: 1 };   // dokumen berisi peta { idSekolah: hasil }
   function dariFirestore(nama) {
     var kunci = (FS_API_KEY && !/^ISI_/.test(FS_API_KEY)) ? '?key=' + encodeURIComponent(FS_API_KEY) : '';
     return fetch(FS_URL + encodeURIComponent(nama) + kunci).then(function (r) {
@@ -70,6 +71,12 @@
     };
     if (FS_FUNGSI[nama] === 1 && args.length === 0 && window.fetch) {
       dariFirestore(nama).then(function (data) { console.info('[SIMAK] ' + nama + ': dari Firestore'); sukses(data); }, lewatApi);
+    } else if (FS_PER_ID[nama] === 1 && args.length === 1 && window.fetch) {
+      dariFirestore(nama).then(function (peta) {
+        var id = String(args[0] == null ? '' : args[0]).trim();
+        if (!peta || !Object.prototype.hasOwnProperty.call(peta, id)) throw new Error('Sekolah tidak ada di salinan');
+        return peta[id];
+      }).then(function (data) { console.info('[SIMAK] ' + nama + '(' + args[0] + '): dari Firestore'); sukses(data); }, lewatApi);
     } else {
       lewatApi();
     }
