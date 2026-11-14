@@ -18,27 +18,61 @@
   function giliran() {
     while (jalan < MAKS_BERSAMAAN && antri.length) { jalan++; antri.shift()(); }
   }
-  function kirim(nama, args, ok, gagal, user) {
-    antri.push(function () {
-      var selesai = function () { jalan--; giliran(); };
-      var galat = function (e) { selesai(); if (typeof gagal === 'function') gagal(e, user); else console.error('[SIMAK] ' + nama + ':', e); };
-      if (!SIMAK_API_URL || /^ISI_/.test(SIMAK_API_URL)) { galat(new Error('Alamat API belum diisi di index.html (SIMAK_API_URL).')); return; }
-      fetch(SIMAK_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // text/plain: tanpa preflight CORS
-        body: JSON.stringify({ fn: nama, args: args }),
-        redirect: 'follow'
-      }).then(function (r) { return r.text(); }).then(function (t) {
-        var d;
-        try { d = JSON.parse(t); } catch (e) { throw new Error('Balasan server tidak valid. Pastikan web app dideploy dengan akses Anyone.'); }
-        if (!d || d.ok !== true) throw new Error((d && d.error) || 'Galat server.');
-        return d.data === undefined ? null : d.data;
-      }).then(function (data) {
-        selesai();
-        if (typeof ok === 'function') setTimeout(function () { ok(data, user); }, 0);
-      }, galat);
+  /* ---- Jalur cepat: data publik dibaca dari Firestore (disalin oleh Apps Script), bukan dari Apps Script ---- */
+  var FS_PROJECT = 'simak-1a499';
+  var FS_API_KEY = 'AIzaSyDtsgoknfDyGJedJqC9GF0ysWDXY5ypjLw';       // apiKey dari public/config.js (boleh dikosongkan bila aturan Firestore mengizinkan)
+  var FS_MAKS_UMUR_MS = 24 * 3600 * 1000;        // salinan lebih tua dari ini diabaikan, halaman kembali ke Apps Script
+  var FS_URL = 'https://firestore.googleapis.com/v1/projects/' + FS_PROJECT + '/databases/(default)/documents/cache/';
+  var FS_FUNGSI = {                              // harus sama dengan daftar fsDaftar_() di Firestore.gs
+    getSekolahPublik: 1, getRekapJumlahSekolah: 1, getRekapJumlahPesertaDidik: 1, getRekapPesertaDidikPerSekolah: 1,
+    getRekapAgama: 1, getRekapDapodikTambahan: 1, getRekapPTK: 1, getRekapATS: 1, getRekapJurusanSMK: 1,
+    getRekapMBG: 1, getRekapAdiwiyata: 1, getRekapBoarding: 1, getPetaSekolah: 1, getInfoPembaruanData: 1,
+    getDaftarPembanding: 1, getRekapLulusanLaporan: 1, getRekapTracerStudy: 1, getAppLainnya: 1
+  };
+  function dariFirestore(nama) {
+    var kunci = (FS_API_KEY && !/^ISI_/.test(FS_API_KEY)) ? '?key=' + encodeURIComponent(FS_API_KEY) : '';
+    return fetch(FS_URL + encodeURIComponent(nama) + kunci).then(function (r) {
+      if (!r.ok) throw new Error('Firestore ' + r.status);
+      return r.json();
+    }).then(function (d) {
+      var f = (d && d.fields) || {};
+      var j = f.json && f.json.stringValue;
+      var t = f.t && Date.parse(f.t.stringValue);
+      if (!j) throw new Error('Dokumen kosong');
+      if (!t || Date.now() - t > FS_MAKS_UMUR_MS) throw new Error('Salinan usang');
+      return JSON.parse(j);
     });
-    giliran();
+  }
+
+  function kirim(nama, args, ok, gagal, user) {
+    var sukses = function (data) { if (typeof ok === 'function') setTimeout(function () { ok(data, user); }, 0); };
+    var lewatApi = function () {
+      antri.push(function () {
+        var selesai = function () { jalan--; giliran(); };
+        var galat = function (e) { selesai(); if (typeof gagal === 'function') gagal(e, user); else console.error('[SIMAK] ' + nama + ':', e); };
+        if (!SIMAK_API_URL || /^ISI_/.test(SIMAK_API_URL)) { galat(new Error('Alamat API belum diisi di index.html (SIMAK_API_URL).')); return; }
+        fetch(SIMAK_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // text/plain: tanpa preflight CORS
+          body: JSON.stringify({ fn: nama, args: args }),
+          redirect: 'follow'
+        }).then(function (r) { return r.text(); }).then(function (t) {
+          var d;
+          try { d = JSON.parse(t); } catch (e) { throw new Error('Balasan server tidak valid. Pastikan web app dideploy dengan akses Anyone.'); }
+          if (!d || d.ok !== true) throw new Error((d && d.error) || 'Galat server.');
+          return d.data === undefined ? null : d.data;
+        }).then(function (data) {
+          selesai();
+          sukses(data);
+        }, galat);
+      });
+      giliran();
+    };
+    if (FS_FUNGSI[nama] === 1 && args.length === 0 && window.fetch) {
+      dariFirestore(nama).then(function (data) { console.info('[SIMAK] ' + nama + ': dari Firestore'); sukses(data); }, lewatApi);
+    } else {
+      lewatApi();
+    }
   }
   function bangun(ok, gagal, user) {
     return new Proxy({}, { get: function (_, nama) {
