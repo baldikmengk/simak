@@ -1295,9 +1295,6 @@ html[data-tema="gelap"] .select option { background: #1a2240; color: #e8edf7; }
 html[data-tema="gelap"] .btn-ghost { color: var(--brand-deep); }
 html[data-tema="gelap"] .btn-ghost:hover { background: rgba(255, 255, 255, .14); border-color: rgba(142, 166, 255, .5); }
 html[data-tema="gelap"] .dp-split div { background: rgba(255, 255, 255, .06); }
-/* Kartu formasi bangku, tile, dan kotak admin: latar terang yang ditulis langsung perlu diganti saat mode gelap */
-html[data-tema="gelap"] .tile, html[data-tema="gelap"] .formasi-card, html[data-tema="gelap"] .admin-box { background: rgba(255, 255, 255, .05); border-color: var(--line); }
-html[data-tema="gelap"] .formasi-row { border-top-color: rgba(255, 255, 255, .08); }
 html[data-tema="gelap"] .event:hover, html[data-tema="gelap"] .dp-card:hover, html[data-tema="gelap"] .tile:hover { box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
 html[data-tema="gelap"] .bar-track { background: rgba(255, 255, 255, .10); }
 html[data-tema="gelap"] .pbd-bar.lama { background: #5d6b87; }
@@ -4686,8 +4683,8 @@ function showDetailSekolah(idSekolah) {
                                                                 : '';
                                                 const formasiSmkHtml = isSmk
                                                                 ? '<section class="panel panel-pad block">' +
-                                                                                                '<h2 class="panel-title" style="margin-bottom:4px">Formasi bangku kosong per jurusan</h2>' +
-                                                                                                '<p class="panel-sub" style="margin-bottom:16px">Bangku kosong = kapasitas dikurangi jumlah peserta didik yang terisi.</p>' +
+                                                                                                '<h2 class="panel-title" style="margin-bottom:4px">Daya tampung per jurusan</h2>' +
+                                                                                                '<p class="panel-sub" style="margin-bottom:16px">Sisa daya tampung = daya tampung dikurangi jumlah peserta didik yang terisi.</p>' +
                                                                                                 '<div id="formasiSmkContainer">' + skeleton(1, 'sk-row') + '</div>' +
                                                                                 '</section>'
                                                                 : '';
@@ -4741,25 +4738,13 @@ function showDetailSekolah(idSekolah) {
 
                                                                 (isSmk ? formasiSmkHtml : 
                                                                 '<section class="panel panel-pad block">' +
-                                                                                '<h2 class="panel-title" style="margin-bottom:14px">Formasi bangku kosong</h2>' +
-                                                                                (formasi.length > 0
-                                                                                                ? '<div class="table-wrap"><table class="table"><thead><tr>' +
-                                                                                                                '<th class="c">No</th><th>Tingkat</th><th>Jurusan</th><th class="c">Kapasitas</th>' +
-                                                                                                                '<th class="c">Terisi</th><th class="c">Bangku kosong</th></tr></thead><tbody>' +
-                                                                                                                formasi.map(function(i, idx) {
-                                                                                                                                return '<tr><td class="num">' + (idx + 1) + '</td>' +
-                                                                                                                                                '<td>' + escapeHtml(i.tingkat || '-') + '</td>' +
-                                                                                                                                                '<td>' + escapeHtml(i.jurusan || '-') + '</td>' +
-                                                                                                                                                '<td class="c">' + fmt(i.kapasitas) + '</td>' +
-                                                                                                                                                '<td class="c">' + fmt(i.terisi) + '</td>' +
-                                                                                                                                                '<td class="c"><b>' + fmt(i.bangku_kosong) + '</b></td></tr>';
-                                                                                                                }).join('') +
-                                                                                                                '</tbody></table></div>'
-                                                                                                : emptyState('Belum ada data formasi bangku')) +
+                                                                                '<h2 class="panel-title" style="margin-bottom:4px">Daya tampung per rombel</h2>' +
+                                                                                '<p class="panel-sub" style="margin-bottom:16px">Daya tampung standar 36 peserta didik per rombel. Sisa daya tampung = daya tampung dikurangi jumlah peserta didik yang terisi; rombel berisi 36 atau lebih dihitung 0.</p>' +
+                                                                                '<div id="dayaTampungSmaContainer">' + skeleton(1, 'sk-row') + '</div>' +
                                                                 '</section>');
 
                                                 setHtml('detailSekolahContainer', html);
-                                                if (isSmk) { loadJurusanSekolah(idSekolah); loadFormasiSMK(idSekolah); }
+                                                if (isSmk) { loadJurusanSekolah(idSekolah); loadFormasiSMK(idSekolah); } else { loadDayaTampungSMA(idSekolah); }
                                                 loadPtkSekolah(idSekolah);
                                                 loadAdiwiyataSekolah(idSekolah, s.npsn);
                                 })
@@ -4906,8 +4891,8 @@ function loadFormasiSMK(idSekolah) {
                 google.script.run
                                 .withSuccessHandler(function(data) { renderFormasiSMK(data); })
                                 .withFailureHandler(function(error) {
-                                                console.error('Gagal memuat formasi bangku SMK:', error);
-                                                setHtml('formasiSmkContainer', errorState('Data formasi bangku belum bisa dimuat',
+                                                console.error('Gagal memuat daya tampung SMK:', error);
+                                                setHtml('formasiSmkContainer', errorState('Data daya tampung belum bisa dimuat',
                                                                 'Pastikan fungsi getFormasiBangkuSMK sudah ada di file formasi_smk.gs.'));
                                 })
                                 .getFormasiBangkuSMK(idSekolah);
@@ -4919,16 +4904,16 @@ function labelTingkat(tingkat) {
 
 function renderFormasiSMK(data) {
                 if (!data || !data.jurusan || data.jurusan.length === 0) {
-                                setHtml('formasiSmkContainer', emptyState('Data formasi bangku belum tersedia'));
+                                setHtml('formasiSmkContainer', emptyState('Data daya tampung belum tersedia'));
                                 return;
                 }
 
                 const t = data.total;
                 setHtml('formasiSmkContainer',
                                 '<div class="mini-stats">' +
-                                                '<div><b>' + fmt(t.kapasitas) + '</b><span>Kapasitas</span></div>' +
+                                                '<div><b>' + fmt(t.kapasitas) + '</b><span>Daya tampung</span></div>' +
                                                 '<div><b>' + fmt(t.terisi) + '</b><span>Terisi</span></div>' +
-                                                '<div><b>' + fmt(t.kosong) + '</b><span>Bangku kosong</span></div>' +
+                                                '<div><b>' + fmt(t.kosong) + '</b><span>Sisa daya tampung</span></div>' +
                                 '</div>' +
                                 '<div class="formasi-grid">' +
                                                 data.jurusan.map(function(j) {
@@ -4936,15 +4921,64 @@ function renderFormasiSMK(data) {
                                                                 return '<article class="formasi-card">' +
                                                                                 '<header><h3>' + escapeHtml(j.nama) + '</h3>' +
                                                                                                 '<span class="badge ' + (penuh ? 'badge-belum' : 'badge-sudah') + '">' +
-                                                                                                                (penuh ? 'Penuh' : fmt(j.total.kosong) + ' kosong') + '</span></header>' +
+                                                                                                                (penuh ? 'Penuh' : fmt(j.total.kosong) + ' sisa') + '</span></header>' +
                                                                                 j.tingkat.map(function(k) {
                                                                                                 const persen = k.kapasitas > 0 ? Math.min(100, (k.terisi / k.kapasitas) * 100) : 0;
                                                                                                 return '<div class="formasi-row">' +
                                                                                                                 '<div class="formasi-top"><span>' + escapeHtml(labelTingkat(k.tingkat)) + '</span>' +
-                                                                                                                                '<span>' + (k.kosong === 0 ? '<b>Penuh</b>' : '<b>' + fmt(k.kosong) + '</b> kosong') + '</span></div>' +
+                                                                                                                                '<span>' + (k.kosong === 0 ? '<b>Penuh</b>' : '<b>' + fmt(k.kosong) + '</b> sisa') + '</span></div>' +
                                                                                                                 '<div class="bar-track"><span class="bar-fill' + (k.kosong === 0 ? ' full' : '') + '" style="width:' + persen + '%"></span></div>' +
-                                                                                                                '<div class="formasi-meta">' + fmt(k.terisi) + ' terisi dari ' + fmt(k.kapasitas) + ' kapasitas' +
+                                                                                                                '<div class="formasi-meta">' + fmt(k.terisi) + ' terisi dari ' + fmt(k.kapasitas) + ' daya tampung' +
                                                                                                                                 (k.lebih > 0 ? ' (melebihi ' + fmt(k.lebih) + ')' : '') + '</div>' +
+                                                                                                '</div>';
+                                                                                }).join('') +
+                                                                '</article>';
+                                                }).join('') +
+                                '</div>');
+}
+
+function loadDayaTampungSMA(idSekolah) {
+                google.script.run
+                                .withSuccessHandler(function(data) { renderDayaTampungSMA(data); })
+                                .withFailureHandler(function(error) {
+                                                console.error('Gagal memuat daya tampung SMA:', error);
+                                                setHtml('dayaTampungSmaContainer', errorState('Data daya tampung belum bisa dimuat',
+                                                                'Pastikan fungsi getDayaTampungSMA sudah ada di Kode.gs dan web app sudah dideploy ulang.'));
+                                })
+                                .getDayaTampungSMA(idSekolah);
+}
+
+function renderDayaTampungSMA(data) {
+                if (!data || !data.tingkat || data.tingkat.length === 0) {
+                                setHtml('dayaTampungSmaContainer', emptyState('Data daya tampung belum tersedia'));
+                                return;
+                }
+
+                const t = data.total;
+                setHtml('dayaTampungSmaContainer',
+                                '<div class="mini-stats">' +
+                                                '<div><b>' + fmt(t.jumlah_rombel) + '</b><span>Rombel</span></div>' +
+                                                '<div><b>' + fmt(t.daya_tampung) + '</b><span>Daya tampung</span></div>' +
+                                                '<div><b>' + fmt(t.terisi) + '</b><span>Terisi</span></div>' +
+                                                '<div><b>' + fmt(t.sisa) + '</b><span>Sisa daya tampung</span></div>' +
+                                '</div>' +
+                                '<div class="formasi-grid">' +
+                                                data.tingkat.map(function(k) {
+                                                                const penuh = k.sisa === 0;
+                                                                return '<article class="formasi-card">' +
+                                                                                '<header><h3>' + escapeHtml(labelTingkat(k.tingkat)) + ' <small style="font-weight:400;color:var(--muted)">(' + fmt(k.jumlah_rombel) + ' rombel)</small></h3>' +
+                                                                                                '<span class="badge ' + (penuh ? 'badge-belum' : 'badge-sudah') + '">' +
+                                                                                                                (penuh ? 'Penuh' : fmt(k.sisa) + ' sisa') + '</span></header>' +
+                                                                                k.rombel.map(function(r) {
+                                                                                                const persen = r.kapasitas > 0 ? Math.min(100, (r.terisi / r.kapasitas) * 100) : 0;
+                                                                                                const lp = (r.laki_laki !== null && r.perempuan !== null)
+                                                                                                                ? ' (L ' + fmt(r.laki_laki) + ' · P ' + fmt(r.perempuan) + ')' : '';
+                                                                                                return '<div class="formasi-row">' +
+                                                                                                                '<div class="formasi-top"><span>' + escapeHtml(r.nama) + '</span>' +
+                                                                                                                                '<span>' + (r.sisa === 0 ? '<b>Penuh</b>' : '<b>' + fmt(r.sisa) + '</b> sisa') + '</span></div>' +
+                                                                                                                '<div class="bar-track"><span class="bar-fill' + (r.sisa === 0 ? ' full' : '') + '" style="width:' + persen + '%"></span></div>' +
+                                                                                                                '<div class="formasi-meta">' + fmt(r.terisi) + ' terisi dari ' + fmt(r.kapasitas) + ' daya tampung' + lp +
+                                                                                                                                (r.lebih > 0 ? ' (melebihi ' + fmt(r.lebih) + ')' : '') + '</div>' +
                                                                                                 '</div>';
                                                                                 }).join('') +
                                                                 '</article>';
@@ -6522,7 +6556,7 @@ function utqBarisStatus(daftar) {
 function utqTabelStatus() {
     const s = window.utq.status;
     return '<h3 class="utq-grup" style="margin-top:0">A. Data dari Dapodik</h3>' + utqBarisStatus((s.dapodik || []).concat([utqItemPtk()])) +
-        '<h3 class="utq-grup">B. Data di luar Dapodik (ATS, Adiwiyata, dan Jurusan SMK)</h3>' + utqBarisStatus(s.items.filter(function(it) { return UTQ_KARTU_B.indexOf(it.kode) > -1; }));
+        '<h3 class="utq-grup">B. Data di luar Dapodik (ATS, Adiwiyata, Daya Tampung SMA, dan Jurusan SMK)</h3>' + utqBarisStatus(s.items.filter(function(it) { return UTQ_KARTU_B.indexOf(it.kode) > -1; }));
 }
 
 function tampilUpdateDatabase() {
@@ -6670,11 +6704,14 @@ const UTQ_INFO = {
     ADW: { file: true, desk: 'Tanpa template Excel. Unggah file <b>Status Adiwiyata</b> apa adanya (.csv atau .xlsx) dengan kolom <b>Nama Sekolah, Kab/Kota, Jenjang, Level, Tahun, Keterangan, Status SIDIA</b>. ' +
         'Level: <b>0</b> Belum Adiwiyata, <b>1</b> Registrasi SIDIA, <b>2</b> Adiwiyata DIY, <b>3</b> Adiwiyata Nasional, <b>4</b> Adiwiyata Mandiri. ' +
         'File ini <b>menggantikan seluruh data Adiwiyata</b>, jadi isi file harus lengkap. NPSN dicari otomatis dari nama sekolah. Setelah berhasil, data langsung tampil di Serba Informasi, bagian Sekolah Adiwiyata.' },
+    DTP: { file: true, desk: 'Tanpa template. Unggah file <b>peserta didik per rombel</b> apa adanya (.csv atau .xlsx) dengan kolom <b>NPSN, L/P, Tingkat, Rombel</b>, satu baris per peserta didik. NPSN boleh hanya diisi di baris pertama tiap sekolah, SIMAK melengkapinya sendiri. ' +
+        'Hanya <b>SMA</b> yang disimpan (SMK menyusul, per jurusan). Daya tampung standar <b>36 peserta didik per rombel</b>; sisa daya tampung = 36 dikurangi jumlah peserta didik rombel (rombel berisi 36 atau lebih dihitung 0). ' +
+        'Nama peserta didik tidak dikirim ke server, hanya jumlah laki-laki dan perempuan per rombel. File ini <b>menggantikan seluruh data daya tampung SMA</b>, jadi isinya harus lengkap. Setelah berhasil, data tampil di halaman Detail Sekolah (SMA).' },
     BRD: { desk: 'Unduh template berisi data boarding school per tahun ajaran. Pertahankan baris tahun ajaran sebelumnya agar riwayatnya tetap tampil.' },
     JRS: { desk: 'Unduh template berisi jurusan di setiap SMK yang sekarang tampil, perbarui, lalu unggah.' }
 };
 
-const UTQ_KARTU_B = ['ATS', 'ADW', 'JRS'];   // kartu yang tampil di bagian B (MBG, Adiwiyata, dan Boarding tidak diperbarui lewat halaman ini)
+const UTQ_KARTU_B = ['ATS', 'ADW', 'DTP', 'JRS'];   // kartu yang tampil di bagian B (MBG, Adiwiyata, dan Boarding tidak diperbarui lewat halaman ini)
 
 function utqItemPtk() {
     const daftar = (window.utq.status && window.utq.status.items) || [];
@@ -6690,8 +6727,8 @@ function utqKartu(it, dalamLangkah) {
             '<select id="utqPeriode_' + kode + '" class="select">' + utqOpsiPeriode() + '</select></div>' +
         '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">' +
             (file ? '' : '<button type="button" class="btn" id="utqBtnUnduh_' + kode + '" onclick="utqUnduh(\'' + kode + '\')">' + ic('download') + 'Unduh template</button>') +
-            '<label class="btn btn-ghost" for="utqFile_' + kode + '">' + ic('folder') + (file ? (kode === 'PTK' ? 'Pilih file Dapodik' : (kode === 'ADW' ? 'Pilih file Adiwiyata' : 'Pilih file Data Upload ATS')) : 'Unggah file Excel') + '</label>' +
-            '<input type="file" id="utqFile_' + kode + '" accept="' + (file ? '.csv,.xlsx,.xls' : '.xlsx,.xls') + '" hidden onchange="' + (file ? (kode === 'PTK' ? 'ptkPilihFile' : (kode === 'ADW' ? 'adwPilihFile' : 'atsPilihFile')) : 'utqPilihFile') + '(this, \'' + kode + '\')">' +
+            '<label class="btn btn-ghost" for="utqFile_' + kode + '">' + ic('folder') + (file ? (kode === 'PTK' ? 'Pilih file Dapodik' : (kode === 'ADW' ? 'Pilih file Adiwiyata' : (kode === 'DTP' ? 'Pilih file peserta didik per rombel' : 'Pilih file Data Upload ATS'))) : 'Unggah file Excel') + '</label>' +
+            '<input type="file" id="utqFile_' + kode + '" accept="' + (file ? '.csv,.xlsx,.xls' : '.xlsx,.xls') + '" hidden onchange="' + (file ? (kode === 'PTK' ? 'ptkPilihFile' : (kode === 'ADW' ? 'adwPilihFile' : (kode === 'DTP' ? 'dtpPilihFile' : 'atsPilihFile'))) : 'utqPilihFile') + '(this, \'' + kode + '\')">' +
             '<span id="utqNama_' + kode + '" class="utq-nama" style="margin-left:0"></span>' +
         '</div>' +
         '<div id="utqLap_' + kode + '"></div></div>';
@@ -6872,7 +6909,9 @@ function utqMintaKonfirmasi(kode) {
     const per = utqPeriodeDipilih('utqPeriode_' + kode);
     if (!per) return;
     setHtml('utqAksi_' + kode,
-        '<div class="utq-konfirmasi"><p><b>Ganti isi data ini dan simpan sebagai foto ' + escapeHtml(per) + '?</b> Bila ' + escapeHtml(per) + ' sudah punya foto data ini, foto lamanya ditimpa. Isi lama sheet tidak hilang: disalin dulu ke cadangan tersembunyi, dan pembaruan dicatat di riwayat.</p>' +
+        '<div class="utq-konfirmasi"><p>' + (kode === 'DTP'
+            ? '<b>Ganti seluruh data daya tampung SMA (periode ' + escapeHtml(per) + ')?</b> Isi lama sheet tidak hilang: disalin dulu ke cadangan tersembunyi, dan pembaruan dicatat di riwayat.'
+            : '<b>Ganti isi data ini dan simpan sebagai foto ' + escapeHtml(per) + '?</b> Bila ' + escapeHtml(per) + ' sudah punya foto data ini, foto lamanya ditimpa. Isi lama sheet tidak hilang: disalin dulu ke cadangan tersembunyi, dan pembaruan dicatat di riwayat.') + '</p>' +
         '<button type="button" class="btn" onclick="utqTerapkan(\'' + kode + '\')">Ya, ganti data</button> ' +
         '<button type="button" class="btn btn-ghost" onclick="utqTampilLaporan(utqData(\'' + kode + '\').laporan, \'' + kode + '\')">Batal</button></div>');
 }
@@ -6902,6 +6941,7 @@ function utqTerapkan(kode) {
     if (kode === 'PTK') jalan.terapkanImporPTK(window.anggotaToken, d.payload);
     else if (kode === 'ATS') jalan.terapkanImporATS(window.anggotaToken, d.payload);
     else if (kode === 'ADW') jalan.terapkanImporAdiwiyata(window.anggotaToken, d.payload);
+    else if (kode === 'DTP') jalan.terapkanImporDayaTampung(window.anggotaToken, d.payload);
     else jalan.terapkanUpdateTriwulan(window.anggotaToken, d.payload);
 }
 
@@ -6918,7 +6958,9 @@ function utqTampilHasil(hasil, kode) {
                 ? '<span class="badge badge-sudah">Berhasil</span> ' + utqAngka(h.barisLama) + ' &rarr; ' + utqAngka(h.barisBaru) + ' baris' + utqCatatFoto(h)
                 : '<span class="badge badge-galat">Dilewati</span> ' + escapeHtml(h.msg || '')) + '</td></tr>';
         }).join('') + '</tbody></table></div>' +
-        '<div class="note-box"><p>Rekap di menu Serba Informasi sekarang memakai data baru. Foto periode tersimpan permanen untuk menu Perbandingan Data, dan cadangan data lama tersimpan sebagai sheet tersembunyi bernama CADANGAN_... di Google Sheet.</p></div></div>');
+        '<div class="note-box"><p>' + (kode === 'DTP'
+            ? 'Sisa daya tampung sekarang tampil di halaman Detail Sekolah (SMA). Cadangan data lama tersimpan sebagai sheet tersembunyi bernama CADANGAN_... di Google Sheet.'
+            : 'Rekap di menu Serba Informasi sekarang memakai data baru. Foto periode tersimpan permanen untuk menu Perbandingan Data, dan cadangan data lama tersimpan sebagai sheet tersembunyi bernama CADANGAN_... di Google Sheet.') + '</p></div></div>');
     showToast('Pembaruan selesai.');
 }
 
@@ -7199,6 +7241,102 @@ function adwProses(aoa, namaFile) {
             setHtml(lap, errorState('File belum bisa diperiksa', 'Koneksi terputus atau server SIMAK belum memakai kode terbaru. Coba lagi.'));
         })
         .periksaImporAdiwiyata(window.anggotaToken, utqData('ADW').payload);
+}
+
+/* ---------- Daya Tampung SMA: file peserta didik per rombel (CSV bertitik koma atau Excel) ---------- */
+function dtpPilihFile(input, kode) {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    setText('utqNama_DTP', f.name);
+    const lap = 'utqLap_DTP';
+    if (!/\.(csv|xlsx|xls)$/i.test(f.name)) {
+        setHtml(lap, errorState('Format file tidak didukung', 'Gunakan file .csv atau .xlsx peserta didik per rombel.'));
+        return;
+    }
+    setHtml(lap, '<p class="result-info" style="margin-top:14px">Membaca file...</p>');
+    const fr = new FileReader();
+    fr.onerror = function() { setHtml(lap, errorState('File tidak bisa dibaca', 'Coba pilih file lagi.')); };
+    if (/\.csv$/i.test(f.name)) {
+        fr.onload = function(e) {
+            try { dtpProses(csvKeAoa(String(e.target.result)), f.name); }
+            catch (err) { console.error(err); setHtml(lap, errorState('File tidak bisa diproses', 'Pastikan file peserta didik per rombel tidak rusak.')); }
+        };
+        fr.readAsText(f, 'UTF-8');
+    } else {
+        muatXlsx(function() {
+            fr.onload = function(e) {
+                try {
+                    const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                    let aoa = null;
+                    for (let i = 0; i < wb.SheetNames.length && !aoa; i++) {
+                        const a = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[i]], { header: 1, defval: '', raw: true, blankrows: false });
+                        if (dtpCariJudul(a) > -1) aoa = a;
+                    }
+                    dtpProses(aoa || [], f.name);
+                } catch (err) { console.error(err); setHtml(lap, errorState('File tidak bisa dibaca', 'Pastikan file peserta didik per rombel dan tidak rusak.')); }
+            };
+            fr.readAsArrayBuffer(f);
+        }, function() {
+            setHtml(lap, errorState('Pustaka Excel belum termuat', 'Periksa koneksi internet, lalu pilih file lagi.'));
+        });
+    }
+}
+
+// Baris judul dicari di 15 baris pertama: harus ada NPSN, Tingkat, dan Rombel.
+function dtpCariJudul(aoa) {
+    for (let i = 0; i < Math.min(aoa.length, 15); i++) {
+        const n = (aoa[i] || []).map(dpkNorm);
+        if (n.indexOf('npsn') > -1 && n.indexOf('tingkat') > -1 && n.indexOf('rombel') > -1) return i;
+    }
+    return -1;
+}
+
+function dtpTeks(v) { return v === null || v === undefined ? '' : String(v).trim(); }
+
+// Baris peserta didik dikelompokkan di sini menjadi satu baris per rombel; nama atau data pribadi tidak dikirim ke server.
+function dtpProses(aoa, namaFile) {
+    const lap = 'utqLap_DTP';
+    const h = dtpCariJudul(aoa);
+    if (h < 0) {
+        setHtml(lap, errorState('Bukan file peserta didik per rombel', 'Kolom NPSN, L/P, Tingkat, dan Rombel tidak ditemukan. Jangan ubah judul kolomnya.'));
+        return;
+    }
+    const hn = (aoa[h] || []).map(dpkNorm);
+    const iN = hn.indexOf('npsn'), iT = hn.indexOf('tingkat'), iR = hn.indexOf('rombel');
+    let iJ = hn.indexOf('lp'); if (iJ < 0) iJ = hn.indexOf('jeniskelamin'); if (iJ < 0) iJ = hn.indexOf('jk');
+    if (iJ < 0) {
+        setHtml(lap, errorState('Bukan file peserta didik per rombel', 'Kolom L/P (jenis kelamin) tidak ditemukan. Jangan ubah judul kolomnya.'));
+        return;
+    }
+    let npsn = '', totalSiswa = 0, lain = 0, tanpaNpsn = 0;
+    const peta = {}, urut = [];
+    aoa.slice(h + 1).forEach(function(r) {
+        if (!r.some(function(c) { return dtpTeks(c) !== ''; })) return;
+        const v = dtpTeks(r[iN]).replace(/\.0+$/, '').replace(/\D/g, '');
+        if (v) npsn = v;                      // NPSN kosong = ikut NPSN baris di atasnya
+        totalSiswa++;
+        if (!npsn) { tanpaNpsn++; return; }
+        const jk = dtpTeks(r[iJ]).toUpperCase().charAt(0);
+        const t = dtpTeks(r[iT]), ro = dtpTeks(r[iR]);
+        const k = npsn + '|' + t + '|' + ro;
+        if (!peta[k]) { peta[k] = { npsn: npsn, t: t, ro: ro, L: 0, P: 0 }; urut.push(k); }
+        if (jk === 'L') peta[k].L++; else if (jk === 'P') peta[k].P++; else lain++;
+    });
+    if (!urut.length) {
+        setHtml(lap, errorState('Tidak ada data', 'File ini tidak berisi baris peserta didik di bawah judul kolom.'));
+        return;
+    }
+    const rows = urut.map(function(k) { const x = peta[k]; return [x.npsn, x.t, x.ro, x.L, x.P]; });
+    const el = document.getElementById('utqPeriode_DTP');
+    utqData('DTP').payload = { header: ['npsn', 'tingkat', 'rombel', 'laki_laki', 'perempuan'], rows: rows, totalFile: totalSiswa, lain: lain, tanpaNpsn: tanpaNpsn, namaFile: namaFile, periode: el ? el.value.trim() : '' };
+    setHtml(lap, '<p class="result-info" style="margin-top:14px">Memeriksa ' + utqAngka(totalSiswa) + ' peserta didik dalam ' + utqAngka(rows.length) + ' rombel...</p>');
+    google.script.run
+        .withSuccessHandler(function(r) { utqTerimaPeriksa(r, 'DTP'); })
+        .withFailureHandler(function(e) {
+            console.error(e);
+            setHtml(lap, errorState('File belum bisa diperiksa', 'Koneksi terputus atau server SIMAK belum memakai kode terbaru. Coba lagi.'));
+        })
+        .periksaImporDayaTampung(window.anggotaToken, utqData('DTP').payload);
 }
 
 /* =====================================================
@@ -7699,6 +7837,7 @@ document.addEventListener('DOMContentLoaded', function() {
     terapkanImporPTK: ['Memperbarui data PTK', 'Data PTK diperbarui'],
     terapkanImporATS: ['Memperbarui data ATS', 'Data ATS diperbarui'],
     terapkanImporAdiwiyata: ['Memperbarui data Adiwiyata', 'Data Adiwiyata diperbarui'],
+    terapkanImporDayaTampung: ['Memperbarui daya tampung SMA', 'Daya tampung SMA diperbarui'],
     terapkanImporDapodik: ['Memperbarui data Dapodik', 'Data Dapodik diperbarui'],
     terapkanUpdateTriwulan: ['Memperbarui data', 'Data diperbarui'],
     simpanFotoDataSekarang: ['Menyimpan foto data', 'Foto data tersimpan'],
