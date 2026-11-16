@@ -1610,6 +1610,11 @@ html:not([data-tema="gelap"]) .table td { border-bottom: 1px solid #d3dce7; }
 html:not([data-tema="gelap"]) .table tbody tr:last-child td { border-bottom: 0; }
 html:not([data-tema="gelap"]) .formasi-card { border-color: #c9d3df; }
 html:not([data-tema="gelap"]) .formasi-row { border-top-color: #d3dce7; }
+
+/* Nama sekolah yang bisa diklik (Daftar Sekolah) */
+.link-sekolah { background: none; border: 0; padding: 0; margin: 0; font: inherit; font-weight: inherit; color: var(--brand); text-align: left; cursor: pointer; }
+.link-sekolah:hover { text-decoration: underline; }
+.link-sekolah:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 3px; }
 </style>
 </head>
 <body>
@@ -4486,7 +4491,7 @@ function showSekolah() {
                                                 setHtml('sekolahContainer',
                                                                 '<div class="table-wrap"><table class="table table-wide">' +
                                                                                 '<thead><tr><th class="c">No</th><th>Nama Satuan Pendidikan</th><th>NPSN</th><th>Jenjang</th>' +
-                                                                                '<th>Status</th><th class="c">Akreditasi</th><th>Alamat</th><th>Kapanewon</th><th class="c">Detail</th></tr></thead>' +
+                                                                                '<th>Status</th><th class="c">Akreditasi</th><th>Alamat</th><th>Kapanewon</th></tr></thead>' +
                                                                                 '<tbody id="sekolahBody"></tbody></table></div>');
                                                 filterSekolah();
                                 })
@@ -4631,21 +4636,20 @@ function filterSekolah() {
                 const hasil = sekolahTersaring();
 
                 if (hasil.length === 0) {
-                                body.innerHTML = '<tr><td colspan="9" class="c" style="padding:28px;color:var(--muted)">' +
+                                body.innerHTML = '<tr><td colspan="8" class="c" style="padding:28px;color:var(--muted)">' +
                                                 'Tidak ada sekolah yang cocok. Coba kata kunci atau filter lain.</td></tr>';
                 } else {
                                 body.innerHTML = hasil.map(function(item, index) {
                                                 return '<tr>' +
                                                                 '<td class="num">' + (index + 1) + '</td>' +
-                                                                '<td class="strong">' + escapeHtml(item.nama_satuan_pendidikan || '-') + '</td>' +
+                                                                '<td class="strong"><button type="button" class="link-sekolah" data-id="' + escapeHtml(item.id) + '" ' +
+                                                                                'title="Buka detail sekolah" onclick="showDetailSekolah(this.dataset.id)">' + escapeHtml(item.nama_satuan_pendidikan || '-') + '</button></td>' +
                                                                 '<td class="nowrap">' + escapeHtml(item.npsn || '-') + '</td>' +
                                                                 '<td>' + escapeHtml(item.jenjang || '-') + '</td>' +
                                                                 '<td>' + escapeHtml(item.status || '-') + '</td>' +
                                                                 '<td class="c">' + escapeHtml(item.akreditasi || '-') + '</td>' +
                                                                 '<td>' + escapeHtml(item.alamat || '-') + '</td>' +
                                                                 '<td>' + escapeHtml(item.kapanewon || '-') + '</td>' +
-                                                                '<td class="c"><button type="button" class="btn btn-ghost btn-sm" data-id="' + escapeHtml(item.id) + '" ' +
-                                                                                'onclick="showDetailSekolah(this.dataset.id)">Detail</button></td>' +
                                                 '</tr>';
                                 }).join('');
                 }
