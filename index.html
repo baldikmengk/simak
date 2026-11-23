@@ -5694,7 +5694,7 @@ function ambilCeklist(id) {
                                                 if (!d || d.id !== id) return;
                                                 if (!r || !r.ok) { if (!d.ceklistAktif) { d.ceklistGagal = true; renderTimelineDetail(); } return; }
                                                 d.ceklist = r.data || {};
-                                                if (r.status_pelaksanaan) setStatusDetail(r.status_pelaksanaan);
+                                                if (r.status_pelaksanaan !== undefined) setStatusDetail(r.status_pelaksanaan);
                                                 d.ceklistAktif = true;
                                                 d.ceklistGagal = false;
                                                 if (!d.sibuk && !document.getElementById('ceklistPassword')) renderTimelineDetail();
@@ -5758,6 +5758,7 @@ function ubahCeklist(i, el) {
                 // Tampilan langsung: bila semua tahap Pelaksanaan sudah dicentang, status di atas menjadi Sudah.
                 const pelaksanaan = d.tahap.filter(function(x) { return x.tahap === 'Pelaksanaan'; });
                 if (baru && pelaksanaan.length > 0 && pelaksanaan.every(function(x) { const c = d.ceklist[kunciTahap(x)]; return c && c.done; })) setStatusDetail('Sudah');
+                else if (baru && !/sudah/i.test(((document.getElementById('statusKegiatan') || {}).textContent) || '')) setStatusDetail('Proses');
                 d.sibuk = true;
                 renderTimelineDetail();
                 function batal() {
@@ -5768,7 +5769,7 @@ function ubahCeklist(i, el) {
                 google.script.run
                                 .withSuccessHandler(function(r) {
                                                 if (d !== window.tlDetail) return;
-                                                if (r && r.ok) { d.ceklist = r.data || d.ceklist; if (r.status_pelaksanaan) setStatusDetail(r.status_pelaksanaan); d.sibuk = false; renderTimelineDetail(); return; }
+                                                if (r && r.ok) { d.ceklist = r.data || d.ceklist; if (r.status_pelaksanaan !== undefined) setStatusDetail(r.status_pelaksanaan); d.sibuk = false; renderTimelineDetail(); return; }
                                                 batal();
                                                 if (/sesi|password|masuk/i.test((r && r.msg) || '')) { window.anggotaToken = null; renderTimelineDetail(); tampilLoginCeklist((r && r.msg) || 'Sesi habis. Masuk kembali.'); return; }
                                                 showToast((r && r.msg) || 'Gagal menyimpan ceklist.');
