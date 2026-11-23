@@ -5204,7 +5204,7 @@ function muatDaftarPanitia() {
                                                                 '</div>' +
                                                                 accordion('accPanitia', 'users', 'Susunan Panitia', 'Nama panitia dan deskripsi tugas', 'panitiaForm', 'Pilih kegiatan terlebih dahulu.') +
                                                                 accordion('accTimeline', 'calendar', 'Atur Timeline', 'Jadwal dari persiapan sampai selesai', 'timelineForm', 'Pilih kegiatan terlebih dahulu.') +
-                                                                accordion('accNarasumber', 'users', 'Data Narasumber', 'Identitas dan rekening narasumber (tidak ditampilkan ke publik)', 'narasumberForm', 'Pilih kegiatan terlebih dahulu.'));
+                                                                accordion('accNarasumber', 'users', 'Data Narasumber', 'Pilih dari daftar narasumber atau tambah sendiri (data tidak ditampilkan ke publik)', 'narasumberForm', 'Pilih kegiatan terlebih dahulu.'));
                                                 isiPilihanKegiatanPanitia();
                                 })
                                 .withFailureHandler(function() { keluarPanitia('Gagal memuat daftar kegiatan.'); })
@@ -5406,9 +5406,13 @@ function muatFormNarasumber(id) {
                                                                 return;
                                                 }
                                                 window.narasumberItems = (r.data || []).map(function(x) {
-                                                                return { id: x.id, nama: x.nama, instansi: x.instansi, bank: x.bank, nik: '', nip: '', rek: '', wa: '', mask: x.mask || {} };
+                                                                return { id: x.id, nama: x.nama, instansi: x.instansi, bank: x.bank, atas: x.atas || '', nik: '', nip: '', rek: '', wa: '', mask: x.mask || {} };
                                                 });
-                                                renderFormNarasumber();
+                                                // Daftar narasumber yang disediakan admin; bila gagal dimuat, form tetap bisa dipakai tanpa daftar.
+                                                google.script.run
+                                                                .withSuccessHandler(function(m) { window.narasumberMaster = (m && m.ok && m.data) || []; renderFormNarasumber(); })
+                                                                .withFailureHandler(function() { window.narasumberMaster = []; renderFormNarasumber(); })
+                                                                .daftarNarasumberMaster(window.anggotaToken);
                                 })
                                 .withFailureHandler(function() { setHtml('narasumberForm', errorState('Data narasumber belum bisa dimuat')); })
                                 .ambilNarasumberForm(window.anggotaToken, id);
@@ -5424,23 +5428,31 @@ function renderFormNarasumber() {
                                                 ' placeholder="' + escapeHtml(mask ? mask + ' - kosongkan jika tidak diubah' : (opsi.petunjuk || '')) + '"' +
                                                 ' value="' + escapeHtml(nilai) + '" oninput="ubahNarasumber(' + i + ', \'' + kunci + '\', this.value)"></div>';
                 }
+                const sudah = item.map(function(x) { return String(x.nama || '').trim().toLowerCase(); });
+                const tersedia = (window.narasumberMaster || []).filter(function(m) { return sudah.indexOf(String(m.nama).trim().toLowerCase()) < 0; });
+                const pemilih = '<div class="toolbar" style="margin:0 0 14px"><div class="grow"><label class="field-label" for="nsPilih">Pilih dari daftar narasumber</label>' +
+                                '<select id="nsPilih" class="select"><option value="">' + (tersedia.length ? 'Pilih narasumber' : ((window.narasumberMaster || []).length ? 'Semua narasumber sudah dipilih' : 'Daftar narasumber belum disediakan')) + '</option>' +
+                                tersedia.map(function(m) { return '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.nama + (m.instansi ? ' - ' + m.instansi : '')) + '</option>'; }).join('') + '</select></div>' +
+                                '<div class="fixed"><label class="field-label">&nbsp;</label><button type="button" class="btn btn-ghost" onclick="tambahNarasumberDariDaftar()">+ Tambahkan</button></div></div>';
                 setHtml('narasumberForm',
+                                pemilih +
                                 '<p class="result-info" style="margin:0 0 12px">Data ini hanya untuk anggota dan tidak ditampilkan di halaman publik. ' +
                                 'Nomor yang sudah tersimpan disamarkan; isi kolomnya hanya bila ingin mengubah.</p>' +
-                                (item.length === 0 ? '<p class="result-info">Belum ada narasumber. Klik "Tambah narasumber" untuk memulai.</p>' : '') +
+                                (item.length === 0 ? '<p class="result-info">Belum ada narasumber. Pilih dari daftar di atas, atau klik "Tambah narasumber lain" bila belum ada di daftar.</p>' : '') +
                                 item.map(function(x, i) {
-                                                return '<section class="panitia-role"><h3>Narasumber ' + (i + 1) + '</h3><div class="ns-grid">' +
+                                                return '<section class="panitia-role"><h3>Narasumber ' + (i + 1) + (x.master_id ? ' <small style="font-weight:500;color:var(--muted)">(dari daftar)</small>' : '') + '</h3><div class="ns-grid">' +
                                                                 kolom(i, 'nama', 'Nama', x.nama, { maks: 150 }) +
                                                                 kolom(i, 'instansi', 'Instansi', x.instansi, { maks: 150 }) +
                                                                 kolom(i, 'nik', 'NIK', x.nik, { maks: 16, mode: 'numeric', rahasia: true, petunjuk: '16 digit' }) +
                                                                 kolom(i, 'nip', 'NIP', x.nip, { maks: 18, mode: 'numeric', rahasia: true, petunjuk: '18 digit, kosongkan bila bukan ASN' }) +
                                                                 kolom(i, 'rek', 'Nomor rekening', x.rek, { maks: 25, mode: 'numeric', rahasia: true, petunjuk: 'Hanya angka' }) +
                                                                 kolom(i, 'bank', 'Nama bank', x.bank, { maks: 60, petunjuk: 'Contoh: BRI' }) +
+                                                                kolom(i, 'atas', 'Atas nama rekening', x.atas, { maks: 150, petunjuk: 'Kosongkan bila sama dengan nama' }) +
                                                                 kolom(i, 'wa', 'Nomor WA', x.wa, { maks: 20, mode: 'tel', rahasia: true, petunjuk: 'Contoh: 08123456789' }) +
                                                                 '<div style="display:flex;align-items:flex-end"><button type="button" class="btn btn-ghost btn-sm" onclick="hapusNarasumber(' + i + ')">Hapus narasumber</button></div>' +
                                                 '</div></section>';
                                 }).join('') +
-                                '<div class="tl-aksi"><button type="button" class="btn btn-ghost" onclick="tambahNarasumber()">+ Tambah narasumber</button>' +
+                                '<div class="tl-aksi"><button type="button" class="btn btn-ghost" onclick="tambahNarasumber()">+ Tambah narasumber lain</button>' +
                                 '<button type="button" class="btn" id="btnSimpanNarasumber" onclick="simpanFormNarasumber()">Simpan data narasumber</button></div>');
 }
 
@@ -5448,7 +5460,19 @@ function ubahNarasumber(i, kunci, nilai) { window.narasumberItems[i][kunci] = ni
 
 function tambahNarasumber() {
                 window.narasumberItems = window.narasumberItems || [];
-                window.narasumberItems.push({ id: '', nama: '', instansi: '', bank: '', nik: '', nip: '', rek: '', wa: '', mask: {} });
+                window.narasumberItems.push({ id: '', nama: '', instansi: '', bank: '', atas: '', nik: '', nip: '', rek: '', wa: '', mask: {} });
+                renderFormNarasumber();
+}
+
+function tambahNarasumberDariDaftar() {
+                const sel = document.getElementById('nsPilih');
+                const mid = sel ? sel.value : '';
+                if (!mid) { showToast('Pilih narasumber dari daftar terlebih dahulu.'); return; }
+                const m = (window.narasumberMaster || []).filter(function(x) { return String(x.id) === mid; })[0];
+                if (!m) return;
+                window.narasumberItems = window.narasumberItems || [];
+                // Data lengkap disalin server saat disimpan; di sini hanya nomor samar untuk petunjuk.
+                window.narasumberItems.push({ id: '', master_id: m.id, nama: m.nama, instansi: m.instansi, bank: m.bank, atas: m.atas || '', nik: '', nip: '', rek: '', wa: '', mask: m.mask || {} });
                 renderFormNarasumber();
 }
 
@@ -5474,7 +5498,7 @@ function simpanFormNarasumber() {
                                 })
                                 .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
                                 .simpanNarasumber(window.anggotaToken, id, item.map(function(x) {
-                                                return { id: x.id, nama: x.nama, instansi: x.instansi, bank: x.bank, nik: x.nik, nip: x.nip, rek: x.rek, wa: x.wa };
+                                                return { id: x.id, master_id: x.master_id || '', nama: x.nama, instansi: x.instansi, bank: x.bank, atas_nama: x.atas || '', nik: x.nik, nip: x.nip, rek: x.rek, wa: x.wa };
                                 }));
 }
 
