@@ -5437,7 +5437,7 @@ function simpanFormPeserta() {
                 google.script.run
                                 .withSuccessHandler(function(r) {
                                                 btn.disabled = false;
-                                                if (r.ok) { showToast('Peserta dan sertifikat tersimpan.'); muatFormPeserta(id); return; }
+                                                if (r.ok) { if (r.segar === false) showToast('Tersimpan, tetapi tampilan di menu Informasi belum diperbarui. Coba simpan sekali lagi.'); muatFormPeserta(id); return; }
                                                 if (/sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
                                                 showToast(r.msg || 'Gagal menyimpan.');
                                 })
