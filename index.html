@@ -5210,6 +5210,7 @@ function muatDaftarPanitia() {
                                                                 '</div>' +
                                                                 accordion('accPanitia', 'users', 'Susunan Panitia', 'Nama panitia dan deskripsi tugas', 'panitiaForm', 'Pilih kegiatan terlebih dahulu.') +
                                                                 accordion('accTimeline', 'calendar', 'Atur Timeline', 'Jadwal dari persiapan sampai selesai', 'timelineForm', 'Pilih kegiatan terlebih dahulu.') +
+                                                                accordion('accPeserta', 'users', 'Peserta dan Sertifikat', 'Jumlah peserta dan status sertifikat (tampil di menu Informasi)', 'pesertaForm', 'Pilih kegiatan terlebih dahulu.') +
                                                                 accordion('accNarasumber', 'users', 'Data Narasumber', 'Pilih dari daftar narasumber atau tambah sendiri (data tidak ditampilkan ke publik)', 'narasumberForm', 'Pilih kegiatan terlebih dahulu.'));
                                                 isiPilihanKegiatanPanitia();
                                 })
@@ -5253,6 +5254,7 @@ function muatFormPanitia() {
                 const id = document.getElementById('panitiaKegiatan').value;
                 muatFormTimeline(id);
                 muatFormNarasumber(id);
+                muatFormPeserta(id);
                 if (!id) { setHtml('panitiaForm', '<p class="result-info">Pilih kegiatan untuk mengisi susunan panitia.</p>'); return; }
                 setHtml('panitiaForm', skeleton(3, 'sk-row'));
                 google.script.run
@@ -5394,6 +5396,58 @@ function simpanFormTimeline() {
                                 })
                                 .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
                                 .simpanTimeline(window.anggotaToken, id, data);
+}
+
+/* =====================================================
+            PESERTA DAN SERTIFIKAT (khusus anggota; tampil di menu Kegiatan - Informasi)
+            Sebelumnya diisi langsung di sheet KEGIATAN.
+===================================================== */
+function muatFormPeserta(id) {
+                if (!id) { setHtml('pesertaForm', '<p class="result-info">Pilih kegiatan untuk mengisi peserta dan sertifikat.</p>'); return; }
+                setHtml('pesertaForm', skeleton(2, 'sk-row'));
+                google.script.run
+                                .withSuccessHandler(function(r) {
+                                                if (!r.ok) {
+                                                                if (/sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
+                                                                setHtml('pesertaForm', errorState('Data peserta belum bisa dimuat', r.msg || ''));
+                                                                return;
+                                                }
+                                                const d = r.data || {};
+                                                setHtml('pesertaForm',
+                                                                '<p class="result-info" style="margin:0 0 12px">Tampil di menu Kegiatan - Informasi bila status kegiatan = Publik. Kosongkan jumlah bila tidak ada peserta dari jenjang itu.</p>' +
+                                                                '<div class="ns-grid">' +
+                                                                                '<div><label class="field-label" for="psPeran">Peserta sebagai</label><input type="text" id="psPeran" class="input" maxlength="100" autocomplete="off" placeholder="Contoh: Operator, Guru BK, Kepala Sekolah" value="' + escapeHtml(d.peran || '') + '"></div>' +
+                                                                                '<div><label class="field-label" for="psSma">Jumlah peserta SMA</label><input type="text" id="psSma" class="input" inputmode="numeric" maxlength="6" autocomplete="off" value="' + escapeHtml(d.sma || '') + '"></div>' +
+                                                                                '<div><label class="field-label" for="psSmk">Jumlah peserta SMK</label><input type="text" id="psSmk" class="input" inputmode="numeric" maxlength="6" autocomplete="off" value="' + escapeHtml(d.smk || '') + '"></div>' +
+                                                                                '<div><label class="field-label" for="psSert">Sertifikat</label><select id="psSert" class="select">' +
+                                                                                                '<option value="Tidak"' + (d.sertifikat === 'Ada' ? '' : ' selected') + '>Tidak ada</option>' +
+                                                                                                '<option value="Ada"' + (d.sertifikat === 'Ada' ? ' selected' : '') + '>Ada</option></select></div>' +
+                                                                '</div>' +
+                                                                '<div class="tl-aksi"><button type="button" class="btn" id="btnSimpanPeserta" onclick="simpanFormPeserta()">Simpan peserta dan sertifikat</button></div>');
+                                })
+                                .withFailureHandler(function() { setHtml('pesertaForm', errorState('Data peserta belum bisa dimuat')); })
+                                .ambilPesertaSertifikatForm(window.anggotaToken, id);
+}
+
+function simpanFormPeserta() {
+                const id = document.getElementById('panitiaKegiatan').value;
+                if (!id) { showToast('Pilih kegiatan terlebih dahulu.'); return; }
+                const btn = document.getElementById('btnSimpanPeserta');
+                btn.disabled = true;
+                google.script.run
+                                .withSuccessHandler(function(r) {
+                                                btn.disabled = false;
+                                                if (r.ok) { showToast('Peserta dan sertifikat tersimpan.'); muatFormPeserta(id); return; }
+                                                if (/sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
+                                                showToast(r.msg || 'Gagal menyimpan.');
+                                })
+                                .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
+                                .simpanPesertaSertifikat(window.anggotaToken, id, {
+                                                peran: document.getElementById('psPeran').value,
+                                                sma: document.getElementById('psSma').value,
+                                                smk: document.getElementById('psSmk').value,
+                                                sertifikat: document.getElementById('psSert').value
+                                });
 }
 
 /* =====================================================
@@ -7972,6 +8026,7 @@ document.addEventListener('DOMContentLoaded', function() {
     simpanFotoDataSekarang: ['Menyimpan foto data', 'Foto data tersimpan'],
     simpanPanitia: ['Menyimpan susunan panitia', 'Susunan panitia tersimpan'],
     simpanTimeline: ['Menyimpan timeline', 'Timeline tersimpan'],
+    simpanPesertaSertifikat: ['Menyimpan peserta dan sertifikat', 'Peserta dan sertifikat tersimpan'],
     simpanNarasumber: ['Menyimpan data narasumber', 'Data narasumber tersimpan']
   };
   var TRACK = /^(simpan|terapkan)/;
