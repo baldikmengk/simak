@@ -818,6 +818,12 @@ h1, h2, h3, p { margin: 0; }
 .tabel-informasi .num { width: 34px; }
 .anggota-detail { margin: 0 0 8px; }
 .anggota-detail small { display: block; color: var(--muted); font-size: 12.5px; }
+.link-nama { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--brand); text-align: left; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.link-nama:hover { color: var(--brand-deep); }
+.ns-overlay { position: fixed; inset: 0; background: rgba(10, 37, 64, .55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 1000; }
+.ns-dialog { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; padding: 20px; }
+.ns-dialog h2 { margin: 0 0 4px; font-size: 20px; }
+.ns-dialog .facts { margin: 12px 0 16px; }
 .tl-form-item { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; padding: 14px; margin-bottom: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 .ns-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .tl-aksi { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
@@ -5406,7 +5412,7 @@ function muatFormNarasumber(id) {
                                                                 return;
                                                 }
                                                 window.narasumberItems = (r.data || []).map(function(x) {
-                                                                return { id: x.id, nama: x.nama, instansi: x.instansi, bank: x.bank, atas: x.atas || '', nik: '', nip: '', rek: '', wa: '', mask: x.mask || {} };
+                                                                return { id: x.id, nama: x.nama, instansi: x.instansi, bank: x.bank, atas: x.atas || '', nik: x.nik || '', nip: x.nip || '', rek: x.rek || '', wa: x.wa || '' };
                                                 });
                                                 // Daftar narasumber yang disediakan admin; bila gagal dimuat, form tetap bisa dipakai tanpa daftar.
                                                 google.script.run
@@ -5421,11 +5427,10 @@ function muatFormNarasumber(id) {
 function renderFormNarasumber() {
                 const item = window.narasumberItems || [];
                 function kolom(i, kunci, label, nilai, opsi) {
-                                const mask = (opsi && opsi.rahasia && item[i].mask[kunci]) || '';
-                                return '<div><label class="field-label">' + label + (mask ? ' (tersimpan)' : '') + '</label>' +
+                                                return '<div><label class="field-label">' + label + '</label>' +
                                                 '<input type="text" class="input" autocomplete="off" maxlength="' + (opsi.maks || 150) + '"' +
                                                 (opsi.mode ? ' inputmode="' + opsi.mode + '"' : '') +
-                                                ' placeholder="' + escapeHtml(mask ? mask + ' - kosongkan jika tidak diubah' : (opsi.petunjuk || '')) + '"' +
+                                                ' placeholder="' + escapeHtml(opsi.petunjuk || '') + '"' +
                                                 ' value="' + escapeHtml(nilai) + '" oninput="ubahNarasumber(' + i + ', \'' + kunci + '\', this.value)"></div>';
                 }
                 const sudah = item.map(function(x) { return String(x.nama || '').trim().toLowerCase(); });
@@ -5436,8 +5441,8 @@ function renderFormNarasumber() {
                                 '<div class="fixed"><label class="field-label">&nbsp;</label><button type="button" class="btn btn-ghost" onclick="tambahNarasumberDariDaftar()">+ Tambahkan</button></div></div>';
                 setHtml('narasumberForm',
                                 pemilih +
-                                '<p class="result-info" style="margin:0 0 12px">Data ini hanya untuk anggota dan tidak ditampilkan di halaman publik. ' +
-                                'Nomor yang sudah tersimpan disamarkan; isi kolomnya hanya bila ingin mengubah.</p>' +
+                                '<p class="result-info" style="margin:0 0 12px">Data lengkap ini hanya tampil untuk anggota yang sudah masuk dan tidak ditampilkan di halaman publik. ' +
+                                'Mengosongkan kolom lalu menyimpan akan menghapus isinya.</p>' +
                                 (item.length === 0 ? '<p class="result-info">Belum ada narasumber. Pilih dari daftar di atas, atau klik "Tambah narasumber lain" bila belum ada di daftar.</p>' : '') +
                                 item.map(function(x, i) {
                                                 return '<section class="panitia-role"><h3>Narasumber ' + (i + 1) + (x.master_id ? ' <small style="font-weight:500;color:var(--muted)">(dari daftar)</small>' : '') + '</h3><div class="ns-grid">' +
@@ -5460,7 +5465,7 @@ function ubahNarasumber(i, kunci, nilai) { window.narasumberItems[i][kunci] = ni
 
 function tambahNarasumber() {
                 window.narasumberItems = window.narasumberItems || [];
-                window.narasumberItems.push({ id: '', nama: '', instansi: '', bank: '', atas: '', nik: '', nip: '', rek: '', wa: '', mask: {} });
+                window.narasumberItems.push({ id: '', nama: '', instansi: '', bank: '', atas: '', nik: '', nip: '', rek: '', wa: '' });
                 renderFormNarasumber();
 }
 
@@ -5471,8 +5476,7 @@ function tambahNarasumberDariDaftar() {
                 const m = (window.narasumberMaster || []).filter(function(x) { return String(x.id) === mid; })[0];
                 if (!m) return;
                 window.narasumberItems = window.narasumberItems || [];
-                // Data lengkap disalin server saat disimpan; di sini hanya nomor samar untuk petunjuk.
-                window.narasumberItems.push({ id: '', master_id: m.id, nama: m.nama, instansi: m.instansi, bank: m.bank, atas: m.atas || '', nik: '', nip: '', rek: '', wa: '', mask: m.mask || {} });
+                window.narasumberItems.push({ id: '', master_id: m.id, nama: m.nama, instansi: m.instansi, bank: m.bank, atas: m.atas || '', nik: m.nik || '', nip: m.nip || '', rek: m.rek || '', wa: m.wa || '' });
                 renderFormNarasumber();
 }
 
@@ -5507,7 +5511,7 @@ function muatNarasumberDetail(id) {
                                 .withSuccessHandler(function(r) {
                                                 const daftar = (r && r.narasumber) || [];
                                                 setHtml('narasumberFakta', daftar.length === 0 ? '-' : daftar.map(function(n) {
-                                                                return '<div class="anggota-detail"><b>' + escapeHtml(n.nama) + '</b>' + (n.instansi ? '<small>' + escapeHtml(n.instansi) + '</small>' : '') + '</div>';
+                                                                return '<div class="anggota-detail"><button type="button" class="link-nama" data-kid="' + escapeHtml(id) + '" data-nid="' + escapeHtml(n.id || '') + '" onclick="bukaNarasumber(this.dataset.kid, this.dataset.nid)">' + escapeHtml(n.nama) + '</button>' + (n.instansi ? '<small>' + escapeHtml(n.instansi) + '</small>' : '') + '</div>';
                                                 }).join(''));
                                 })
                                 .withFailureHandler(function(error) {
@@ -5515,6 +5519,92 @@ function muatNarasumberDetail(id) {
                                                 setHtml('narasumberFakta', '-');
                                 })
                                 .getNarasumberKegiatan(id);
+}
+
+/* =====================================================
+            DATA LENGKAP NARASUMBER DI DETAIL KEGIATAN
+            Nama narasumber diklik -> jendela kecil. Butuh password anggota (sesi yang sama dengan Atur Kegiatan).
+===================================================== */
+window.nsLihat = { kid: '', nid: '' };
+
+function nsModalIsi(html) {
+                let o = document.getElementById('nsOverlay');
+                if (!o) {
+                                o = document.createElement('div');
+                                o.id = 'nsOverlay';
+                                o.className = 'ns-overlay';
+                                o.addEventListener('click', function(e) { if (e.target === o) tutupNarasumber(); });
+                                document.body.appendChild(o);
+                }
+                o.innerHTML = '<div class="ns-dialog" role="dialog" aria-modal="true">' + html + '</div>';
+}
+
+function tutupNarasumber() {
+                const o = document.getElementById('nsOverlay');
+                if (o) o.remove();
+}
+
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') tutupNarasumber(); });
+
+function bukaNarasumber(kid, nid) {
+                window.nsLihat = { kid: kid, nid: nid };
+                if (window.anggotaToken) { muatNarasumberLengkap(); return; }
+                nsModalLogin('');
+}
+
+function nsModalLogin(pesan) {
+                nsModalIsi('<h2>Masuk anggota</h2><p class="result-info" style="margin:0 0 12px">Data lengkap narasumber khusus anggota. Masukkan password untuk melanjutkan.</p>' +
+                                '<label class="field-label" for="nsModalPw">Password</label>' +
+                                '<input type="password" id="nsModalPw" class="input" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')nsModalMasuk()">' +
+                                '<p id="nsModalPesan" class="result-info" style="color:#b3261e;min-height:20px;margin:8px 0">' + escapeHtml(pesan || '') + '</p>' +
+                                '<div class="tl-aksi"><button type="button" class="btn btn-ghost" onclick="tutupNarasumber()">Batal</button><button type="button" class="btn" onclick="nsModalMasuk()">Masuk</button></div>');
+                const f = document.getElementById('nsModalPw');
+                if (f) f.focus();
+}
+
+function nsModalMasuk() {
+                const pw = document.getElementById('nsModalPw').value;
+                if (!pw) { setText('nsModalPesan', 'Isi password terlebih dahulu.'); return; }
+                setText('nsModalPesan', 'Memeriksa...');
+                google.script.run
+                                .withSuccessHandler(function(r) {
+                                                if (!r || !r.ok) { nsModalLogin((r && r.msg) || 'Password salah.'); return; }
+                                                window.anggotaToken = r.token;
+                                                muatNarasumberLengkap();
+                                })
+                                .withFailureHandler(function() { nsModalLogin('Gagal terhubung. Coba lagi.'); })
+                                .masukAnggota(pw);
+}
+
+function muatNarasumberLengkap() {
+                nsModalIsi('<h2>Data narasumber</h2><div style="margin-top:12px">' + skeleton(2, 'sk-row') + '</div>');
+                const kid = window.nsLihat.kid, nid = window.nsLihat.nid;
+                google.script.run
+                                .withSuccessHandler(function(r) {
+                                                if (!r || !r.ok) {
+                                                                if (/sesi/i.test((r && r.msg) || '')) { window.anggotaToken = null; nsModalLogin(r.msg); return; }
+                                                                nsModalIsi('<h2>Data narasumber</h2><p class="result-info">' + escapeHtml((r && r.msg) || 'Data belum bisa dimuat.') + '</p><div class="tl-aksi"><button type="button" class="btn" onclick="tutupNarasumber()">Tutup</button></div>');
+                                                                return;
+                                                }
+                                                const n = (r.data || []).filter(function(x) { return String(x.id) === String(nid); })[0];
+                                                if (!n) {
+                                                                nsModalIsi('<h2>Data narasumber</h2><p class="result-info">Data narasumber ini tidak ditemukan.</p><div class="tl-aksi"><button type="button" class="btn" onclick="tutupNarasumber()">Tutup</button></div>');
+                                                                return;
+                                                }
+                                                const rek = [n.bank, n.rek].filter(Boolean).join(' - ');
+                                                nsModalIsi('<h2>' + escapeHtml(n.nama) + '</h2><p class="result-info" style="margin:0">' + escapeHtml(n.instansi || '') + '</p>' +
+                                                                '<dl class="facts">' +
+                                                                                factItem('NIK', escapeHtml(n.nik || '-')) +
+                                                                                factItem('NIP', escapeHtml(n.nip || '-')) +
+                                                                                factItem('Rekening', escapeHtml(rek || '-')) +
+                                                                                factItem('Atas nama rekening', escapeHtml(n.atas || '-')) +
+                                                                                factItem('Nomor WA', escapeHtml(n.wa || '-')) +
+                                                                '</dl><div class="tl-aksi"><button type="button" class="btn" onclick="tutupNarasumber()">Tutup</button></div>');
+                                })
+                                .withFailureHandler(function() {
+                                                nsModalIsi('<h2>Data narasumber</h2><p class="result-info">Gagal terhubung. Coba lagi.</p><div class="tl-aksi"><button type="button" class="btn" onclick="tutupNarasumber()">Tutup</button></div>');
+                                })
+                                .ambilNarasumberForm(window.anggotaToken, kid);
 }
 
 function kunciTahap(t) { return String(t.tahap) + '||' + String(t.mulai); }
@@ -5832,18 +5922,17 @@ function renderTabelInformasi(data) {
                                 '<p class="result-info">Menampilkan ' + data.length + ' kegiatan</p>' +
                                 '<div class="table-wrap"><table class="table tabel-informasi"><thead><tr>' +
                                                 '<th class="c">No</th><th>Nama kegiatan</th><th>PIC</th><th>Angkas</th>' +
-                                                '<th>Tanggal pelaksanaan</th><th>Peserta</th><th class="c">Status</th><th class="c">Sertifikat</th><th class="c">Detail</th></tr></thead><tbody>' +
+                                                '<th>Tanggal pelaksanaan</th><th>Peserta</th><th class="c">Status</th><th class="c">Sertifikat</th></tr></thead><tbody>' +
                                                 data.map(function(item, index) {
                                                                 return '<tr>' +
                                                                                 '<td class="num">' + (index + 1) + '</td>' +
-                                                                                '<td class="strong">' + escapeHtml(item.nama_kegiatan || '-') + '</td>' +
+                                                                                '<td class="strong"><button type="button" class="link-nama" data-id="' + escapeHtml(item.id) + '" onclick="showDetailKegiatan(this.dataset.id)">' + escapeHtml(item.nama_kegiatan || '-') + '</button></td>' +
                                                                                 '<td>' + escapeHtml(item.pic || '-') + '</td>' +
                                                                                 '<td>' + escapeHtml(item.angkas || '-') + '</td>' +
                                                                                 '<td>' + escapeHtml(item.tanggal_pelaksanaan || '-') + '</td>' +
                                                                                 '<td>' + pesertaHtml(item.id) + '</td>' +
                                                                                 '<td class="c">' + badgeStatus(item.status_pelaksanaan) + '</td>' +
                                                                                 '<td class="c">' + certBadge(item.status_sertifikat) + '</td>' +
-                                                                                '<td class="c"><button type="button" class="btn btn-ghost btn-sm" data-id="' + escapeHtml(item.id) + '" onclick="showDetailKegiatan(this.dataset.id)">Detail</button></td>' +
                                                                 '</tr>';
                                                 }).join('') +
                                 '</tbody></table></div>';
