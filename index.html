@@ -2200,11 +2200,9 @@ function renderKegiatanBerdasarkanTahun(data) {
                                 return;
                 }
 
-                const maxTotal = Math.max.apply(null, tahunList.map(function(t) { return tahunData[t].total; }));
-
                 container.innerHTML = tahunList.map(function(tahun) {
                                 const d = tahunData[tahun];
-                                const width = Math.max(14, (d.total / maxTotal) * 100);
+                                const width = 100;   // bilah penuh = seluruh kegiatan tahun itu; warna menunjukkan komposisi status
                                 const label = d.sudah + ' sudah, ' + d.proses + ' proses, ' + d.belum + ' belum';
                                 return '<div class="year-row">' +
                                                 '<div class="year-label"><strong>' + escapeHtml(tahun) + '</strong><span>' + d.total + ' kegiatan</span></div>' +
