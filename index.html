@@ -841,6 +841,10 @@ h1, h2, h3, p { margin: 0; }
 .tl-bar { height: 8px; margin-top: 8px; background: #e6ebf0; border-radius: 999px; overflow: hidden; }
 .tl-bar span { display: block; height: 100%; background: #1a7f4b; border-radius: 999px; transition: width .3s; }
 .panitia-role h3 { margin: 0 0 8px; font-size: 15px; }
+.table-panitia td:nth-child(1) { width: 150px; font-weight: 600; color: var(--brand-deep); }
+.table-panitia td:nth-child(2) { width: 250px; }
+.table-panitia td:nth-child(3) { color: var(--muted); line-height: 1.6; }
+.table-panitia .anggota-detail + .anggota-detail { margin-top: 8px; }
 textarea.input { min-height: 110px; resize: vertical; font: inherit; }
 
 /* =====================================================
@@ -5675,19 +5679,21 @@ function muatTimelineDetail(id) {
                                                 window.tlDetail = { id: id, tahap: r.tahap, ceklist: {}, ceklistAktif: false, ceklistGagal: false, sibuk: false };
                                                 renderTimelineDetail();
                                                 ambilCeklist(id);
-                                                // Sinkron otomatis: ceklist dari anggota lain muncul tanpa muat ulang halaman.
+                                                // Sinkron otomatis tiap 30 detik (diam-diam): ceklist dari anggota lain muncul tanpa muat ulang halaman.
                                                 window.tlTimer = setInterval(function() {
                                                                 if (!document.getElementById('timelineDetail')) { clearInterval(window.tlTimer); window.tlTimer = null; return; }
                                                                 if (document.hidden || !window.tlDetail || window.tlDetail.sibuk) return;
                                                                 if (document.getElementById('ceklistPassword')) return;
-                                                                ambilCeklist(id);
-                                                }, 15000);
+                                                                ambilCeklist(id, true);
+                                                }, 30000);
                                 })
                                 .withFailureHandler(function() { setHtml('timelineDetail', errorState('Timeline belum bisa dimuat')); })
                                 .getTimelineKegiatan(id);
 }
 
-function ambilCeklist(id) {
+function ambilCeklist(id, senyap) {
+                if (senyap) window.simakSenyap = true;   // penyegaran otomatis: tidak memunculkan kartu "Memuat data..."
+                try {
                 google.script.run
                                 .withSuccessHandler(function(r) {
                                                 const d = window.tlDetail;
@@ -5704,6 +5710,7 @@ function ambilCeklist(id) {
                                                 if (d && d.id === id && !d.ceklistAktif) { d.ceklistGagal = true; renderTimelineDetail(); }
                                 })
                                 .getCeklistTimeline(id);
+                } finally { window.simakSenyap = false; }
 }
 
 function renderTimelineDetail() {
@@ -5838,14 +5845,12 @@ function showDetailKegiatan(id) {
                                                                 setHtml('panitiaDetail', emptyState('Susunan panitia belum diisi', 'Informasi akan tampil setelah panitia mengisinya.'));
                                                                 return;
                                                 }
-                                                setHtml('panitiaDetail', r.peran.map(function(p) {
-                                                                return '<section class="panitia-role"><h3>' + escapeHtml(p.peran) + '</h3>' +
-                                                                                '<div style="margin-bottom:8px">' + (p.anggota || [{ nama: p.nama }]).map(function(a) {
+                                                setHtml('panitiaDetail', '<div class="table-wrap"><table class="table table-panitia"><thead><tr><th>Peran</th><th>Nama dan jabatan</th><th>Tugas</th></tr></thead><tbody>' + r.peran.map(function(p) {
+                                                                return '<tr><td>' + escapeHtml(p.peran) + '</td><td>' + (p.anggota || [{ nama: p.nama }]).map(function(a) {
                                                                                 return '<div class="anggota-detail"><b>' + escapeHtml(a.nama) + '</b>' +
                                                                                                 (a.jabatan || a.nip ? '<small>' + [a.jabatan ? escapeHtml(a.jabatan) : '', a.nip ? 'NIP ' + escapeHtml(a.nip) : ''].filter(Boolean).join(' &middot; ') + '</small>' : '') + '</div>';
-                                                                }).join('') + '</div>' +
-                                                                                '<p style="margin:0;color:var(--muted)">' + escapeHtml(p.tugas || '-').replace(/\n/g, '<br>') + '</p></section>';
-                                                }).join('') + (r.diperbarui ? '<p class="result-info">Diperbarui ' + escapeHtml(r.diperbarui) + '</p>' : ''));
+                                                                }).join('') + '</td><td>' + escapeHtml(p.tugas || '-').replace(/\n/g, '<br>') + '</td></tr>';
+                                                }).join('') + '</tbody></table></div>' + (r.diperbarui ? '<p class="result-info">Diperbarui ' + escapeHtml(r.diperbarui) + '</p>' : ''));
                                 })
                                 .withFailureHandler(function() { setHtml('panitiaDetail', errorState('Susunan panitia belum bisa dimuat')); })
                                 .getPanitiaKegiatan(id);
@@ -8116,8 +8121,9 @@ document.addEventListener('DOMContentLoaded', function() {
       if (nama === 'withUserObject') return function (u) { return rantai(dasar, ok, gagal, u, true); };
       return function () {
         var sudah = false, pengaman;
-        var akhir = function () { if (sudah) return; sudah = true; clearTimeout(pengaman); selesai(); };
-        mulai();
+        var hitung = !window.simakSenyap;   // permintaan senyap (penyegaran otomatis) tidak dihitung
+        var akhir = function () { if (sudah) return; sudah = true; clearTimeout(pengaman); if (hitung) selesai(); };
+        if (hitung) mulai();
         pengaman = setTimeout(akhir, BATAS_AMAN);
         try {
           var r = dasar.withSuccessHandler(function () {
