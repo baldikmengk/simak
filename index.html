@@ -26,7 +26,7 @@
   var FS_FUNGSI = {                              // harus sama dengan daftar fsDaftar_() di Firestore.gs
     getSekolahPublik: 1, getRekapJumlahSekolah: 1, getRekapJumlahPesertaDidik: 1, getRekapPesertaDidikPerSekolah: 1,
     getRekapAgama: 1, getRekapDapodikTambahan: 1, getRekapPTK: 1, getRekapATS: 1, getRekapJurusanSMK: 1,
-    getRekapMBG: 1, getRekapAdiwiyata: 1, getKegiatanPublik: 1, getLaporanKegiatan: 1, getJumlahDokumentasi: 1, getPesertaKegiatan: 1, getRekapBoarding: 1, getPetaSekolah: 1, getInfoPembaruanData: 1,
+    getRekapMBG: 1, getRekapAdiwiyata: 1, getKegiatanPublik: 1, getLaporanKegiatan: 1, getJumlahDokumentasi: 1, getPesertaKegiatan: 1, getAgendaBeranda: 1, getRekapBoarding: 1, getPetaSekolah: 1, getInfoPembaruanData: 1,
     getDaftarPembanding: 1, getRekapLulusanLaporan: 1, getRekapTracerStudy: 1, getAppLainnya: 1
   };
   var FS_PER_ID = { getDetailSekolah: 1, getJurusanSekolah: 1, getRekapPTKSekolah: 1, getFormasiBangkuSMK: 1 };   // dokumen berisi peta { idSekolah: hasil }
@@ -1522,6 +1522,20 @@ html[data-tema="gelap"] .al-chip[aria-pressed="true"] { color: #0d1224; }
   .nav-pill, .nav button, .btn, .toast, .snd-toggle { transition: none; }
 }
 
+.agenda-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 900px) { .agenda-grid { grid-template-columns: minmax(0, 1fr); } }
+.agenda-col { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.agenda-col h3 { margin: 0 0 4px; font-size: 15px; }
+.agenda-item { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
+.agenda-item:first-of-type { border-top: 0; }
+.agenda-isi { min-width: 0; flex: 1; }
+.agenda-meta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.agenda-bar { height: 6px; border-radius: 4px; background: var(--line); overflow: hidden; margin: 8px 0 4px; }
+.agenda-bar i { display: block; height: 100%; background: var(--brand); }
+.agenda-tgl { flex: none; width: 48px; text-align: center; border: 1px solid var(--line); border-radius: 10px; padding: 5px 0; line-height: 1.2; }
+.agenda-tgl b { display: block; font-size: 17px; }
+.agenda-tgl small { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+
 /* ---- Menu dan pindah halaman tanpa animasi (tidak mantul, tidak membayang) ---- */
 .nav-pill { transition: none !important; }
 .nav button { transition: color .12s, background .12s !important; }
@@ -1997,10 +2011,10 @@ function showBeranda() {
                                 '</section>' +
 
                                 '<section class="block">' +
-                                                '<div class="block-head"><h2>Kegiatan terbaru</h2>' +
-                                                                '<button type="button" class="btn-text" onclick="go(\'kegiatan\')">Lihat semua' + ic('chev-right') + '</button>' +
+                                                '<div class="block-head"><h2>Sedang berjalan dan jadwal terdekat</h2>' +
+                                                                '<button type="button" class="btn-text" onclick="go(\'informasi\')">Semua kegiatan' + ic('chev-right') + '</button>' +
                                                 '</div>' +
-                                                '<div id="kegiatanContainer" class="event-grid">' + skeleton(3, 'sk-card') + '</div>' +
+                                                '<div id="agendaContainer">' + skeleton(3, 'sk-row') + '</div>' +
                                 '</section>' +
 
                                 '<section class="block">' +
@@ -2013,6 +2027,7 @@ function showBeranda() {
                                 '</section>'
                 );
                 loadDashboardData();
+                muatAgendaBeranda();
 }
 
 function metricButton(page, icon, id, label) {
@@ -2059,12 +2074,11 @@ function loadDashboardData() {
                                                 setText('jumlahBelum', fmt(belum));
                                                 setText('jumlahBersertifikat', fmt(bersertifikat));
 
-                                                renderKegiatanTerbaru(list);
+                                                window.dataKegiatanBeranda = list;
                                                 renderKegiatanBerdasarkanTahun(list);
                                 })
                                 .withFailureHandler(function(error) {
                                                 console.error('Gagal memuat kegiatan:', error);
-                                                setHtml('kegiatanContainer', errorState('Kegiatan belum bisa dimuat'));
                                                 setHtml('kegiatanTahunContainer', errorState('Data tahun belum bisa dimuat'));
                                 })
                                 .getKegiatanPublik();
@@ -2075,27 +2089,91 @@ function loadDashboardData() {
                                 .getJumlahDokumentasi();
 }
 
-function renderKegiatanTerbaru(data) {
-                const container = document.getElementById('kegiatanContainer');
-                if (!container) return;
+function isoHariIni() {
+                const d = new Date();
+                return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
 
-                if (!Array.isArray(data) || data.length === 0) {
-                                container.className = '';
-                                container.innerHTML = emptyState('Belum ada kegiatan publik');
-                                return;
-                }
+function muatAgendaBeranda() {
+                google.script.run
+                                .withSuccessHandler(renderAgendaBeranda)
+                                .withFailureHandler(function(error) {
+                                                console.error('Gagal memuat agenda:', error);
+                                                setHtml('agendaContainer', errorState('Agenda belum bisa dimuat'));
+                                })
+                                .getAgendaBeranda();
+}
 
-                container.innerHTML = data.slice(0, 5).map(function(item) {
-                                return '<article class="event">' +
-                                                '<h3>' + escapeHtml(item.nama_kegiatan || '-') + '</h3>' +
-                                                '<div class="event-meta">' +
-                                                                '<div>' + ic('user') + '<span>' + escapeHtml(item.pic || '-') + '</span></div>' +
-                                                                '<div class="date">' + ic('calendar') + '<span>' + escapeHtml(item.tanggal_pelaksanaan || '-') + '</span></div>' +
-                                                                '<div>' + ic('pin') + '<span>' + escapeHtml(item.lokasi || '-') + '</span></div>' +
-                                                '</div>' +
-                                                '<div class="event-foot">' + badgeStatus(item.status_pelaksanaan) + '</div>' +
-                                '</article>';
-                }).join('');
+function namaKegiatanLink(k) {
+                return '<button type="button" class="link-nama" data-id="' + escapeHtml(k.id) + '" onclick="bukaKegiatanDariBeranda(this.dataset.id)">' + escapeHtml(k.nama || '-') + '</button>';
+}
+
+function renderAgendaBeranda(r) {
+                const el = document.getElementById('agendaContainer');
+                if (!el) return;
+                const list = (r && r.kegiatan) || [];
+                const hariIni = isoHariIni();
+                const BLN = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGU', 'SEP', 'OKT', 'NOV', 'DES'];
+
+                function berikutnya(k) { return (k.baris || []).filter(function(b) { return !b.d; })[0] || null; }
+
+                const proses = list.filter(function(k) { return statusKey(k.status) === 'proses'; }).sort(function(a, b) {
+                                const x = berikutnya(a), y = berikutnya(b);
+                                return (x ? x.m : '9999') < (y ? y.m : '9999') ? -1 : (x ? x.m : '9999') > (y ? y.m : '9999') ? 1 : 0;
+                }).slice(0, 5);
+
+                const jadwal = [];
+                list.forEach(function(k) {
+                                (k.baris || []).forEach(function(b) {
+                                                if (!b.d && (b.s || b.m) >= hariIni) jadwal.push({ k: k, b: b });
+                                });
+                });
+                jadwal.sort(function(a, b) { return a.b.m < b.b.m ? -1 : a.b.m > b.b.m ? 1 : 0; });
+
+                const kolomProses = proses.length === 0
+                                ? '<p class="result-info" style="margin:8px 0 0">Tidak ada kegiatan yang sedang berjalan.</p>'
+                                : proses.map(function(k) {
+                                                const total = (k.baris || []).length;
+                                                const selesai = (k.baris || []).filter(function(b) { return b.d; }).length;
+                                                const next = berikutnya(k);
+                                                return '<div class="agenda-item"><div class="agenda-isi">' + namaKegiatanLink(k) +
+                                                                '<div class="agenda-meta">' + escapeHtml(k.tahun || '') + '</div>' +
+                                                                (total ? '<div class="agenda-bar" aria-hidden="true"><i style="width:' + Math.round(selesai / total * 100) + '%"></i></div>' +
+                                                                                '<div class="agenda-meta">' + selesai + ' dari ' + total + ' tahap terlaksana' +
+                                                                                (next ? ' &middot; berikutnya: ' + escapeHtml(next.t) + ', ' + escapeHtml(rentangTanggal(next.m, next.s)) : '') + '</div>' : '') +
+                                                                '</div></div>';
+                                }).join('');
+
+                const kolomJadwal = jadwal.length === 0
+                                ? '<p class="result-info" style="margin:8px 0 0">Belum ada jadwal mendatang.</p>'
+                                : jadwal.slice(0, 6).map(function(x) {
+                                                const p = x.b.m.split('-');
+                                                return '<div class="agenda-item"><div class="agenda-tgl"><b>' + Number(p[2]) + '</b><small>' + BLN[Number(p[1]) - 1] + '</small></div>' +
+                                                                '<div class="agenda-isi"><b>' + escapeHtml(x.b.t) + '</b>' +
+                                                                '<div class="agenda-meta">' + namaKegiatanLink(x.k) + '</div>' +
+                                                                (x.b.s && x.b.s !== x.b.m ? '<div class="agenda-meta">' + escapeHtml(rentangTanggal(x.b.m, x.b.s)) + '</div>' : '') +
+                                                                '</div></div>';
+                                }).join('');
+
+                el.innerHTML = '<div class="agenda-grid">' +
+                                '<section class="agenda-col"><h3>Sedang berjalan</h3>' + kolomProses + '</section>' +
+                                '<section class="agenda-col"><h3>Jadwal terdekat</h3>' + kolomJadwal + '</section>' +
+                                '</div>';
+}
+
+// Buka detail kegiatan dari Beranda: siapkan data yang dipakai halaman detail, lalu tampilkan.
+function bukaKegiatanDariBeranda(id) {
+                window.dataInformasiKegiatan = window.dataKegiatanBeranda || window.dataInformasiKegiatan || [];
+                if (window.pesertaKegiatan) { showDetailKegiatan(id); return; }
+                google.script.run
+                                .withSuccessHandler(function(data) {
+                                                const peta = {};
+                                                (data || []).forEach(function(p) { (peta[p.kegiatan_id] = peta[p.kegiatan_id] || []).push(p); });
+                                                window.pesertaKegiatan = peta;
+                                                showDetailKegiatan(id);
+                                })
+                                .withFailureHandler(function() { window.pesertaKegiatan = {}; showDetailKegiatan(id); })
+                                .getPesertaKegiatan();
 }
 
 function renderKegiatanBerdasarkanTahun(data) {
