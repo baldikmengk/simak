@@ -1522,6 +1522,12 @@ html[data-tema="gelap"] .al-chip[aria-pressed="true"] { color: #0d1224; }
   .nav-pill, .nav button, .btn, .toast, .snd-toggle { transition: none; }
 }
 
+/* ---- Menu dan pindah halaman tanpa animasi (tidak mantul, tidak membayang) ---- */
+.nav-pill { transition: none !important; }
+.nav button { transition: color .12s, background .12s !important; }
+.nav button:active { transform: none !important; }
+#content.swap { animation: none !important; }
+
 /* =====================================================
    ISLAND v52 — kapsul notifikasi dan status proses (pengganti toast)
 ===================================================== */
