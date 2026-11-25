@@ -7838,7 +7838,7 @@ function renderAppLainnya(d) {
                 return;
         }
         if (!d.data.length) {
-                setHtml('alContainer', emptyState('Belum ada aplikasi', 'Daftar akan tampil di sini setelah tautan ditambahkan.'));
+                setHtml('alContainer', emptyState('Belum ada aplikasi', 'Daftar akan tampil di sini setelah tautan ditambahkan.') + '<p style="margin:18px 0 0"><button type="button" class="btn btn-ghost btn-sm" onclick="showKelolaTautan()">Kelola daftar tautan</button></p>');
                 return;
         }
         d.data.forEach(function(i) { i.kats = alKategori(i.kategori); });
@@ -7854,9 +7854,128 @@ function renderAppLainnya(d) {
                 '<div class="al-chips" id="alChips" role="group" aria-label="Filter kategori"></div>' +
                 '<p class="result-info" id="alInfo" style="margin:0 0 12px" role="status"></p>' +
                 '<div id="alGrid"></div>' +
-                (d.kelola ? '<p style="margin:18px 0 0"><a class="btn btn-ghost btn-sm" href="' + escapeHtml(d.kelola) + '" target="_blank" rel="noopener noreferrer">Kelola daftar tautan</a></p>' : '')
+                '<p style="margin:18px 0 0"><button type="button" class="btn btn-ghost btn-sm" onclick="showKelolaTautan()">Kelola daftar tautan</button></p>'
         );
         alSaring();
+}
+
+/* =====================================================
+            KELOLA DAFTAR TAUTAN (App Lainnya) - khusus anggota, memakai password anggota yang sama
+===================================================== */
+window.tautanKelola = [];
+window.tautanEdit = '';
+
+function showKelolaTautan() {
+                setActiveMenu('applain');
+                render(pageHead('Kelola daftar tautan', 'Tambah, ubah, urutkan, atau hapus aplikasi yang tampil di App Lainnya. Khusus anggota dan memerlukan password.') +
+                                '<p style="margin:0 0 12px"><button type="button" class="btn btn-ghost btn-sm" onclick="showAppLainnya()">Kembali ke App Lainnya</button></p>' +
+                                '<div id="tautanIsi"></div>');
+                gerbangAnggota('tautanIsi', muatKelolaTautan);
+}
+
+function keluarTautan(pesan) {
+                habisSesi('tautanIsi', muatKelolaTautan, pesan);
+}
+
+function muatKelolaTautan() {
+                setHtml('tautanIsi', skeleton(3, 'sk-row'));
+                google.script.run
+                                .withSuccessHandler(function(r) {
+                                                if (!r.ok) {
+                                                                if (/sesi/i.test(r.msg || '')) { keluarTautan(r.msg); return; }
+                                                                setHtml('tautanIsi', errorState('Daftar tautan belum bisa dimuat', r.msg || ''));
+                                                                return;
+                                                }
+                                                window.tautanKelola = r.data || [];
+                                                window.tautanEdit = '';
+                                                renderKelolaTautan();
+                                })
+                                .withFailureHandler(function() { setHtml('tautanIsi', errorState('Daftar tautan belum bisa dimuat')); })
+                                .ambilTautanKelola(window.anggotaToken);
+}
+
+function renderKelolaTautan() {
+                const daftar = window.tautanKelola || [];
+                const e = daftar.filter(function(x) { return x.id === window.tautanEdit; })[0] || { id: '', nama: '', url: '', kategori: '', ket: '', ikon: '' };
+                const ikonList = ['toga', 'tracer', 'topeng', 'arsip', 'data', 'gedung', 'buku', 'orang'];
+                const baris = daftar.map(function(x, i) {
+                                return '<tr><td>' + (i + 1) + '</td>' +
+                                                '<td><b>' + escapeHtml(x.nama) + '</b><div style="color:var(--muted);font-size:12.5px;word-break:break-all">' + escapeHtml(x.url) + '</div></td>' +
+                                                '<td>' + escapeHtml(x.kategori || '-') + '</td>' +
+                                                '<td style="white-space:nowrap">' +
+                                                                '<button type="button" class="btn btn-ghost btn-sm" data-id="' + escapeHtml(x.id) + '" onclick="tkUrut(this.dataset.id,\'naik\')"' + (i === 0 ? ' disabled' : '') + ' aria-label="Naikkan">&uarr;</button> ' +
+                                                                '<button type="button" class="btn btn-ghost btn-sm" data-id="' + escapeHtml(x.id) + '" onclick="tkUrut(this.dataset.id,\'turun\')"' + (i === daftar.length - 1 ? ' disabled' : '') + ' aria-label="Turunkan">&darr;</button> ' +
+                                                                '<button type="button" class="btn btn-ghost btn-sm" data-id="' + escapeHtml(x.id) + '" onclick="tkEdit(this.dataset.id)">Ubah</button> ' +
+                                                                '<button type="button" class="btn btn-ghost btn-sm" data-id="' + escapeHtml(x.id) + '" onclick="tkHapus(this.dataset.id)">Hapus</button>' +
+                                                '</td></tr>';
+                }).join('');
+                setHtml('tautanIsi',
+                                tombolKeluarAnggota() +
+                                '<section class="panitia-role" id="tkForm"><h3>' + (e.id ? 'Ubah tautan' : 'Tambah tautan') + '</h3><div class="ns-grid">' +
+                                                '<div><label class="field-label" for="tkNama">Nama aplikasi</label><input id="tkNama" class="input" maxlength="100" autocomplete="off" value="' + escapeHtml(e.nama) + '"></div>' +
+                                                '<div><label class="field-label" for="tkUrl">Alamat tautan</label><input id="tkUrl" class="input" maxlength="500" autocomplete="off" inputmode="url" placeholder="https://..." value="' + escapeHtml(e.url) + '"></div>' +
+                                                '<div><label class="field-label" for="tkKategori">Kategori</label><input id="tkKategori" class="input" maxlength="100" autocomplete="off" placeholder="Pisahkan beberapa kategori dengan /" value="' + escapeHtml(e.kategori) + '"></div>' +
+                                                '<div><label class="field-label" for="tkIkon">Ikon (opsional)</label><input id="tkIkon" class="input" maxlength="500" autocomplete="off" list="tkIkonList" placeholder="Kosong = logo situs otomatis" value="' + escapeHtml(e.ikon) + '"><datalist id="tkIkonList">' + ikonList.map(function(k) { return '<option value="' + k + '">'; }).join('') + '</datalist></div>' +
+                                                '<div style="grid-column:1/-1"><label class="field-label" for="tkKet">Keterangan</label><input id="tkKet" class="input" maxlength="300" autocomplete="off" value="' + escapeHtml(e.ket) + '"></div>' +
+                                '</div><div class="tl-aksi"><button type="button" class="btn" id="btnSimpanTautan" onclick="tkSimpan()">' + (e.id ? 'Simpan perubahan' : 'Tambah tautan') + '</button>' +
+                                (e.id ? ' <button type="button" class="btn btn-ghost" onclick="tkBatal()">Batal</button>' : '') + '</div></section>' +
+                                '<h2 class="panel-title" style="margin:20px 0 12px">Daftar tautan (' + daftar.length + ')</h2>' +
+                                (daftar.length ? '<div class="table-wrap"><table class="table"><thead><tr><th>No</th><th>Aplikasi</th><th>Kategori</th><th>Aksi</th></tr></thead><tbody>' + baris + '</tbody></table></div>'
+                                                : '<p class="result-info">Belum ada tautan.</p>') +
+                                '<p class="result-info" style="margin-top:10px">Aplikasi bernama SIMAK atau beralamat sama dengan SIMAK tidak ditampilkan di App Lainnya.</p>');
+}
+
+function tkEdit(id) {
+                window.tautanEdit = id;
+                renderKelolaTautan();
+                const f = document.getElementById('tkForm');
+                if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' });
+}
+
+function tkBatal() {
+                window.tautanEdit = '';
+                renderKelolaTautan();
+}
+
+function tkGalat(r) {
+                if (/sesi/i.test((r && r.msg) || '')) { keluarTautan(r.msg); return true; }
+                return false;
+}
+
+function tkSimpan() {
+                const btn = document.getElementById('btnSimpanTautan');
+                btn.disabled = true;
+                google.script.run
+                                .withSuccessHandler(function(r) {
+                                                btn.disabled = false;
+                                                if (r.ok) { muatKelolaTautan(); return; }
+                                                tkGalat(r);
+                                })
+                                .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
+                                .simpanTautan(window.anggotaToken, {
+                                                id: window.tautanEdit,
+                                                nama: document.getElementById('tkNama').value,
+                                                url: document.getElementById('tkUrl').value,
+                                                kategori: document.getElementById('tkKategori').value,
+                                                ket: document.getElementById('tkKet').value,
+                                                ikon: document.getElementById('tkIkon').value
+                                });
+}
+
+function tkHapus(id) {
+                const x = (window.tautanKelola || []).filter(function(t) { return t.id === id; })[0];
+                if (!x || !confirm('Hapus "' + x.nama + '" dari daftar tautan?')) return;
+                google.script.run
+                                .withSuccessHandler(function(r) { if (r.ok) muatKelolaTautan(); else tkGalat(r); })
+                                .withFailureHandler(function() { showToast('Gagal menghapus. Coba lagi.'); })
+                                .hapusTautan(window.anggotaToken, id);
+}
+
+function tkUrut(id, arah) {
+                google.script.run
+                                .withSuccessHandler(function(r) { if (r.ok) muatKelolaTautan(); else tkGalat(r); })
+                                .withFailureHandler(function() { showToast('Gagal mengubah urutan. Coba lagi.'); })
+                                .urutTautan(window.anggotaToken, id, arah);
 }
 
 function alCariUbah(nilai) {
@@ -8115,9 +8234,12 @@ document.addEventListener('DOMContentLoaded', function() {
     simpanPanitia: ['Menyimpan susunan panitia', 'Susunan panitia tersimpan'],
     simpanTimeline: ['Menyimpan timeline', 'Timeline tersimpan'],
     simpanPesertaSertifikat: ['Menyimpan peserta dan sertifikat', 'Peserta dan sertifikat tersimpan'],
-    simpanNarasumber: ['Menyimpan data narasumber', 'Data narasumber tersimpan']
+    simpanNarasumber: ['Menyimpan data narasumber', 'Data narasumber tersimpan'],
+    simpanTautan: ['Menyimpan tautan', 'Tautan tersimpan'],
+    hapusTautan: ['Menghapus tautan', 'Tautan dihapus'],
+    urutTautan: ['Mengubah urutan', 'Urutan diubah']
   };
-  var TRACK = /^(simpan|terapkan)/;
+  var TRACK = /^(simpan|terapkan|hapus|urut)/;
   function mk(b, st) {
     return new Proxy(b, { get: function (t, p) {
       var v = t[p];
