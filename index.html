@@ -1400,37 +1400,37 @@ html:root .app .sidebar .tema-opsi button:hover { color: #fff; }
 html:root .app .sidebar .tema-opsi button[aria-pressed="true"] { background: var(--sb-pill); color: var(--sb-pill-ink); box-shadow: 0 6px 14px -6px rgba(0, 0, 0, .45); }
 
 /* =====================================================
-   APP LAINNYA (daftar aplikasi, 3 kolom)
+   APP LAINNYA (v2: kartu ringkas, dikelompokkan per kategori)
 ===================================================== */
-.al-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.al-grup + .al-grup { margin-top: 26px; }
+.al-gh { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; }
+.al-gh h3 { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.al-gh span { font-size: 12px; color: var(--muted); }
+.al-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 1200px) { .al-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px) { .al-grid { grid-template-columns: 1fr; } }
 .al-card {
-  --k-s: 80%; --k-bg: 93%; --k-bd: 70%; --k-hv: 88%; --k-tile: 86%; --k-fg: 26%; --m-s: 50%; --m-bg: 90%; --m-fg: 28%;
-  display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 12px; min-width: 0; color: inherit; text-decoration: none;
-  background: hsl(var(--h) var(--k-s) var(--k-bg));
-  border: 1px solid hsl(var(--h) 45% var(--k-bd)); border-left: 5px solid hsl(var(--h) 65% 48%); border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(15, 27, 45, .10), 0 4px 10px -6px rgba(15, 27, 45, .28);
-  transition: background .15s, border-color .15s, box-shadow .15s;
+  display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 12px 14px; min-width: 0;
+  color: inherit; text-decoration: none; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 12px;
+  transition: border-color .15s, background .15s;
 }
-html[data-tema="gelap"] .al-card { --k-s: 48%; --k-bg: 17%; --k-bd: 30%; --k-hv: 22%; --k-tile: 27%; --k-fg: 82%; --m-s: 42%; --m-bg: 22%; --m-fg: 84%; }
-.al-card:hover { background: hsl(var(--h) var(--k-s) var(--k-hv)); border-color: hsl(var(--h) 65% 52%); box-shadow: 0 6px 16px -10px rgba(15, 27, 45, .35); }
+.al-card:hover { border-color: var(--brand); background: var(--brand-soft); }
 .al-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.al-ico { position: relative; overflow: hidden; flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 16px; background: hsl(var(--h) var(--m-s) var(--m-bg)); color: hsl(var(--h) var(--m-s) var(--m-fg)); }
-.al-ico.sv { background: hsl(var(--h) var(--k-s) var(--k-tile)); color: hsl(var(--h) 62% var(--k-fg)); }
-.al-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.al-ico { position: relative; overflow: hidden; flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 15px; background: var(--brand-soft); color: var(--brand); }
+.al-ico.sv svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .al-fv { position: absolute; inset: 0; width: 100%; height: 100%; padding: 6px; object-fit: contain; background: #fff; border-radius: inherit; }
-.al-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
-.al-card b { font-size: 14.5px; line-height: 1.3; color: var(--ink); overflow-wrap: anywhere; }
-.al-card small { font-size: 12px; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
-.al-url { font-weight: 500; font-size: 11.5px; line-height: 1.4; color: hsl(var(--h) 62% var(--k-fg)); overflow-wrap: anywhere; word-break: break-all; }
-.al-tag { flex: none; align-self: flex-start; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600; color: hsl(var(--h) 55% var(--k-fg)); background: hsl(var(--h) var(--k-s) var(--k-tile)); }
-.al-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.al-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.al-card b { font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.al-card small { font-size: 12px; line-height: 1.35; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.al-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
 .al-chip { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 6px 14px; min-height: 34px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.al-chip b { opacity: .7; margin-left: 4px; font-weight: 600; }
-.al-chip:hover { color: var(--ink); }
-.al-chip[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
-html[data-tema="gelap"] .al-chip[aria-pressed="true"] { color: #0d1224; }
+.al-chip b { font-size: 11px; opacity: .55; margin-left: 4px; font-weight: 600; }
+.al-chip:hover { color: var(--ink); border-color: var(--muted); }
+.al-chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.al-more { margin: 12px 0 0; padding: 4px 0; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--brand); cursor: pointer; }
+.al-more:hover { text-decoration: underline; }
+html:root .al-card:hover { transform: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .al-card { transition: none; } }
 
 /* =====================================================
@@ -7848,9 +7848,9 @@ function renderAppLainnya(d) {
         window.appLain.nama = Object.keys(nama).sort(function(a, b) { return a.localeCompare(b, 'id'); });
 
         setHtml('alContainer',
-                '<div class="toolbar"><div class="grow"><label class="field-label" for="alCari">Cari aplikasi</label>' +
+                '<div class="toolbar"><div class="grow">' +
                 '<div class="search-wrap"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>' +
-                '<input id="alCari" class="input" type="search" autocomplete="off" placeholder="Cari nama, kategori, atau keterangan" oninput="alCariUbah(this.value)"></div></div></div>' +
+                '<input id="alCari" class="input" type="search" autocomplete="off" placeholder="Cari aplikasi" aria-label="Cari aplikasi" oninput="alCariUbah(this.value)"></div></div></div>' +
                 '<div class="al-chips" id="alChips" role="group" aria-label="Filter kategori"></div>' +
                 '<p class="result-info" id="alInfo" style="margin:0 0 12px" role="status"></p>' +
                 '<div id="alGrid"></div>' +
@@ -7989,33 +7989,69 @@ function alPilihKategori(idx) {
         alSaring();
 }
 
+const AL_BATAS = 6;   // jumlah kartu per kelompok sebelum "Lihat ... lainnya"
+const AL_URUT = ['Sekolah', 'Dinas', 'Umum', 'Admin'];
+
+function alKartu(i) {
+        return '<a class="al-card" href="' + escapeHtml(i.url) + '" target="_blank" rel="noopener noreferrer" title="' + escapeHtml(i.url) + '">' +
+                alIkonHtml(i) +
+                '<span class="al-txt"><b>' + escapeHtml(i.nama) + '</b>' +
+                (i.ket ? '<small>' + escapeHtml(i.ket) + '</small>' : '') + '</span></a>';
+}
+
+function alRank(g) {
+        const n = AL_URUT.indexOf(g);
+        return n > -1 ? n : (g === 'Lainnya' ? 99 : 50);
+}
+
+function alBuka(idx) {
+        const s = window.appLain, g = s.nama[idx];
+        s.buka[g] = !s.buka[g];
+        alSaring();
+}
+
 function alSaring() {
         const s = window.appLain, k = s.q.trim().toLowerCase();
+        s.buka = s.buka || {};
         const hitung = {};
         s.data.forEach(function(i) { i.kats.forEach(function(c) { hitung[c] = (hitung[c] || 0) + 1; }); });
         setHtml('alChips', s.nama.length > 1
                 ? '<button type="button" class="al-chip" aria-pressed="' + (!s.cat) + '" onclick="alPilihKategori(-1)">Semua <b>' + s.data.length + '</b></button>' +
-                  s.nama.map(function(n, idx) {
-                          return '<button type="button" class="al-chip" aria-pressed="' + (s.cat === n) + '" onclick="alPilihKategori(' + idx + ')">' + escapeHtml(n) + ' <b>' + hitung[n] + '</b></button>';
+                  s.nama.slice().sort(function(a, b) { return alRank(a) - alRank(b) || a.localeCompare(b, 'id'); }).map(function(n) {
+                          return '<button type="button" class="al-chip" aria-pressed="' + (s.cat === n) + '" onclick="alPilihKategori(' + s.nama.indexOf(n) + ')">' + escapeHtml(n) + ' <b>' + hitung[n] + '</b></button>';
                   }).join('')
                 : '');
         const cocok = s.data.filter(function(i) {
                 if (s.cat && i.kats.indexOf(s.cat) < 0) return false;
                 return !k || [i.nama, i.ket, i.kategori, alHost(i.url)].join(' ').toLowerCase().indexOf(k) > -1;
         });
-        setText('alInfo', 'Menampilkan ' + cocok.length + ' dari ' + s.data.length + ' aplikasi');
+        const aktif = !!(k || s.cat);
+        setText('alInfo', aktif ? 'Menampilkan ' + cocok.length + ' dari ' + s.data.length + ' aplikasi' : '');
+        const info = document.getElementById('alInfo');
+        if (info) info.style.display = aktif ? '' : 'none';
         if (!cocok.length) {
                 setHtml('alGrid', emptyState('Tidak ada yang cocok', 'Coba kata kunci lain atau pilih kategori Semua.'));
                 return;
         }
-        setHtml('alGrid', '<div class="al-grid">' + cocok.map(function(i) {
-                return '<a class="al-card" style="--h:' + alWarna(i.nama) + '" href="' + escapeHtml(i.url) + '" target="_blank" rel="noopener noreferrer" title="' + escapeHtml(i.url) + '">' +
-                        alIkonHtml(i) +
-                        '<span class="al-txt"><b>' + escapeHtml(i.nama) + '</b>' +
-                        (i.ket ? '<small>' + escapeHtml(i.ket) + '</small>' : '') +
-                        '<span class="al-url">' + escapeHtml(i.url) + '</span></span>' +
-                        '<span class="al-tag">' + escapeHtml(i.kategori || 'Lainnya') + '</span></a>';
-        }).join('') + '</div>');
+        // Sedang mencari / memfilter: tampilkan semua hasil dalam satu grid.
+        if (aktif) {
+                setHtml('alGrid', '<div class="al-grid">' + cocok.map(alKartu).join('') + '</div>');
+                return;
+        }
+        // Tampilan awal: dikelompokkan per kategori pertama.
+        const grup = {};
+        cocok.forEach(function(i) { const g = i.kats[0]; (grup[g] = grup[g] || []).push(i); });
+        const kunci = Object.keys(grup).sort(function(a, b) { return alRank(a) - alRank(b) || a.localeCompare(b, 'id'); });
+        setHtml('alGrid', kunci.map(function(g) {
+                const arr = grup[g], terbuka = !!s.buka[g];
+                const tampil = terbuka ? arr : arr.slice(0, AL_BATAS);
+                return '<section class="al-grup"><div class="al-gh"><h3>' + escapeHtml(g) + '</h3><span>' + arr.length + ' aplikasi</span></div>' +
+                        '<div class="al-grid">' + tampil.map(alKartu).join('') + '</div>' +
+                        (arr.length > AL_BATAS
+                                ? '<button type="button" class="al-more" onclick="alBuka(' + s.nama.indexOf(g) + ')">' + (terbuka ? 'Tampilkan lebih sedikit' : 'Lihat ' + (arr.length - AL_BATAS) + ' lainnya') + '</button>'
+                                : '') +
+                        '</section>';
+        }).join(''));
 }
 
 function showTentang() {
