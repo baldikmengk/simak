@@ -6035,7 +6035,7 @@ function pesertaTeksInformasi(id) {
 function unduhPdfInformasi() {
                 const sel = document.getElementById('filterTahunInformasi');
                 const tahun = sel ? sel.value : '';
-                const daftar = (window.dataInformasiKegiatan || []).filter(function(item) { return String(item.tahun) === String(tahun); });
+                const daftar = urutkanInformasi((window.dataInformasiKegiatan || []).filter(function(item) { return String(item.tahun) === String(tahun); }));
                 if (!tahun || daftar.length === 0) { showToast('Tidak ada kegiatan untuk diunduh.'); return; }
                 if (!window.pesertaKegiatan) { showToast('Data peserta masih dimuat, coba lagi sebentar.'); return; }
                 const namaStatus = { sudah: 'Sudah', proses: 'Proses', belum: 'Belum' };
@@ -6076,6 +6076,48 @@ function unduhPdfInformasi() {
                 });
 }
 
+/* Urutan kegiatan di menu Informasi: berdasarkan tanggal pelaksanaan (tanggal mulai), paling awal di atas.
+   Kegiatan tanpa tanggal yang terbaca diletakkan paling bawah. Kegiatan bertanggal sama tetap mengikuti urutan semula. */
+const INFO_BULAN = { januari: 1, jan: 1, februari: 2, feb: 2, pebruari: 2, maret: 3, mar: 3, april: 4, apr: 4, mei: 5, may: 5,
+                juni: 6, jun: 6, juli: 7, jul: 7, agustus: 8, agu: 8, agt: 8, ags: 8, aug: 8, september: 9, sep: 9, sept: 9,
+                oktober: 10, okt: 10, oct: 10, november: 11, nov: 11, nop: 11, desember: 12, des: 12, dec: 12 };
+
+function tglMulaiInformasi(teks) {
+                const t = String(teks || '').toLowerCase().replace(/[\u2013\u2014]/g, '-').trim();
+                if (!t) return null;
+                let m = /(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t);                       // 2026-03-12
+                if (m) return Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]);
+                m = /(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/.exec(t);                   // 12/03/2026
+                if (m) return Number(m[3]) * 10000 + Number(m[2]) * 100 + Number(m[1]);
+                // Pisahkan bagian awal dan akhir rentang ("12 - 14 Maret 2026", "28 Februari - 2 Maret 2026")
+                const bagian = t.split(/\s*(?:-|s\.?\s*\/\s*d\.?|s\.?d\.?|sampai|hingga)\s+|\s+-\s*/);
+                const awal = (bagian[0] || '').trim();
+                const akhir = (bagian[bagian.length - 1] || '').trim();
+                function urai(x) {
+                                const hari = /(\d{1,2})/.exec(x);
+                                const bln = /([a-z]+)/.exec(x.replace(/\d+/g, ' '));
+                                const thn = /(\d{4})/.exec(x);
+                                return { d: hari ? Number(hari[1]) : null, m: bln && INFO_BULAN[bln[1]] ? INFO_BULAN[bln[1]] : null, y: thn ? Number(thn[1]) : null };
+                }
+                const a = urai(awal), z = urai(akhir);
+                const d = a.d || z.d;
+                const bulan = a.m || z.m;
+                const tahun = a.y || z.y;
+                if (!d || !bulan || !tahun) return null;
+                return tahun * 10000 + bulan * 100 + d;
+}
+
+function urutkanInformasi(list) {
+                return (list || []).map(function(item, i) { return { item: item, i: i, k: tglMulaiInformasi(item.tanggal_pelaksanaan) }; })
+                                .sort(function(a, b) {
+                                                if (a.k === null && b.k === null) return a.i - b.i;
+                                                if (a.k === null) return 1;
+                                                if (b.k === null) return -1;
+                                                return a.k - b.k || a.i - b.i;
+                                })
+                                .map(function(x) { return x.item; });
+}
+
 function isiFilterTahunInformasi(data) {
                 const select = document.getElementById('filterTahunInformasi');
                 if (!select) return;
@@ -6093,9 +6135,9 @@ function filterInformasiTahun() {
                 const select = document.getElementById('filterTahunInformasi');
                 if (!select) return;
                 window.tahunInformasiPilihan = select.value;
-                const hasil = (window.dataInformasiKegiatan || []).filter(function(item) {
+                const hasil = urutkanInformasi((window.dataInformasiKegiatan || []).filter(function(item) {
                                 return String(item.tahun) === String(select.value);
-                });
+                }));
                 renderTabelInformasi(hasil);
 }
 
