@@ -1458,6 +1458,10 @@ html:root .al-card:hover { transform: none; box-shadow: none; }
 .ik-b .facts { border-top: 0; padding-top: 14px; }
 .ik-sub { margin: 22px 0 10px; font-size: 14px; font-weight: 600; color: var(--ink); }
 .ik-full { margin: 18px 0 0; }
+.ik-tag { display: inline-block; margin-left: 6px; padding: 1px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.ik-tag-now { background: var(--ok-bg); color: var(--ok); }
+.ik-tag-next { background: var(--brand-soft); color: var(--brand); }
+.ik-tag-soon { background: var(--warn-bg); color: var(--warn); }
 @media (max-width: 720px) {
   .ik-h { flex-wrap: wrap; row-gap: 8px; }
   .ik-ch { order: 2; }
@@ -5202,7 +5206,8 @@ function renderDaftarKegiatan(data) {
                                 }).join('');
 }
 
-function muatPesertaKegiatan() {
+function muatPesertaKegiatan(opsi) {
+                const lewatiBilaSama = !!(opsi && opsi.lewatiBilaSama);
                 function segarkan() {
                                 if (document.getElementById('filterTahunKegiatan')) filterKegiatanTahun();
                                 if (document.getElementById('filterTahunInformasi')) filterInformasiTahun();
@@ -5211,8 +5216,11 @@ function muatPesertaKegiatan() {
                                 .withSuccessHandler(function(data) {
                                                 const peta = {};
                                                 (data || []).forEach(function(p) { (peta[p.kegiatan_id] = peta[p.kegiatan_id] || []).push(p); });
+                                                const sig = JSON.stringify(peta);
+                                                const sama = lewatiBilaSama && window.pesertaKegiatan && window.pesertaSig === sig;
                                                 window.pesertaKegiatan = peta;
-                                                segarkan();
+                                                window.pesertaSig = sig;
+                                                if (!sama) segarkan();
                                 })
                                 .withFailureHandler(function(error) {
                                                 console.error('Gagal memuat peserta kegiatan:', error);
@@ -5987,35 +5995,74 @@ function muatPanitiaDetail(id) {
 
 function showInformasi() {
                 window.infoBukaId = null;
+                window.infoGulirOtomatis = true;
                 setActiveMenu('informasi');
+                const f = window.infoFilter = window.infoFilter || { q: '', status: '', pic: '', sert: '' };
+                function opsi(nilai, teks, dipilih) { return '<option value="' + nilai + '"' + (dipilih === nilai ? ' selected' : '') + '>' + teks + '</option>'; }
+                const aktif = !!(String(f.q).trim() || f.status || f.sert || f.pic);
                 render(
-                                pageHead('Informasi Kegiatan', 'Daftar kegiatan berdasarkan tahun pelaksanaan.') +
+                                pageHead('Informasi Kegiatan', 'Daftar kegiatan berdasarkan tahun pelaksanaan, urut dari tanggal paling awal.') +
                                 '<div class="toolbar"><div class="fixed"><label class="field-label" for="filterTahunInformasi">Tahun</label>' +
-                                                '<select id="filterTahunInformasi" class="select" onchange="filterInformasiTahun()">' +
-                                                                '<option value="">Memuat tahun...</option></select></div></div>' +
+                                                '<select id="filterTahunInformasi" class="select" onchange="ubahTahunInformasi()">' +
+                                                                '<option value="">Memuat tahun...</option></select></div>' +
+                                                '<div class="grow"><label class="field-label" for="searchInformasi">Pencarian</label>' +
+                                                                '<div class="search-wrap">' + ic('search') +
+                                                                                '<input type="text" id="searchInformasi" class="input" autocomplete="off" value="' + escapeHtml(f.q) + '" ' +
+                                                                                                'placeholder="Cari nama kegiatan, PIC, lokasi, atau angkas" oninput="cariInformasiTunda()"></div></div>' +
+                                                '<div class="fixed"><label class="field-label" for="filterStatusInformasi">Status</label>' +
+                                                                '<select id="filterStatusInformasi" class="select" onchange="filterInformasiTahun({ tutup: true })">' +
+                                                                                opsi('', 'Semua status', f.status) + opsi('sudah', 'Sudah', f.status) + opsi('proses', 'Proses', f.status) + opsi('belum', 'Belum', f.status) +
+                                                                '</select></div>' +
+                                                '<div class="fixed"><label class="field-label" for="filterSertInformasi">Sertifikat</label>' +
+                                                                '<select id="filterSertInformasi" class="select" onchange="filterInformasiTahun({ tutup: true })">' +
+                                                                                opsi('', 'Semua', f.sert) + opsi('ada', 'Ada', f.sert) + opsi('tidak', 'Tidak', f.sert) +
+                                                                '</select></div>' +
+                                                '<div class="fixed"><label class="field-label" for="filterPicInformasi">PIC</label>' +
+                                                                '<select id="filterPicInformasi" class="select" onchange="filterInformasiTahun({ tutup: true })">' +
+                                                                                '<option value="">Semua PIC</option></select></div></div>' +
                                 '<div class="list-meta"><div class="dl-bar">' +
+                                                '<button type="button" id="infoReset" class="btn btn-ghost btn-sm" style="' + (aktif ? '' : 'display:none') + '" onclick="infoAturUlang()">Atur ulang filter</button>' +
+                                                '<button type="button" class="btn btn-ghost btn-sm" onclick="infoKeKegiatanBerikutnya()">Ke kegiatan berikutnya</button>' +
                                                 '<button type="button" class="btn btn-ghost btn-sm" onclick="unduhPdfInformasi()">' + ic('download') + 'Unduh PDF</button>' +
                                 '</div></div>' +
                                 '<div id="informasiTabelContainer">' + skeleton(4, 'sk-row') + '</div>'
                 );
 
+                // Data yang sudah pernah dimuat (Beranda atau kunjungan sebelumnya) ditampilkan dulu; server tetap dicek di belakang layar.
+                const awal = (window.dataInformasiKegiatan && window.dataInformasiKegiatan.length) ? window.dataInformasiKegiatan : (window.dataKegiatanBeranda || []);
+                const adaCache = awal.length > 0;
+                if (adaCache) {
+                                window.dataInformasiKegiatan = awal;
+                                window.infoSigData = JSON.stringify(awal);
+                                segarkanTampilanInformasi();
+                } else {
+                                window.infoSigData = '';
+                }
+
                 google.script.run
                                 .withSuccessHandler(function(data) {
-                                                window.dataInformasiKegiatan = data || [];
-                                                isiFilterTahunInformasi(window.dataInformasiKegiatan);
-                                                (function() {
-                                                                const sel = document.getElementById('filterTahunInformasi');
-                                                                const t = window.tahunInformasiPilihan;
-                                                                if (sel && t && Array.prototype.some.call(sel.options, function(o) { return o.value === t; })) sel.value = t;
-                                                })();
-                                                filterInformasiTahun();
-                                                muatPesertaKegiatan();
+                                                data = data || [];
+                                                const sig = JSON.stringify(data);
+                                                const berubah = sig !== window.infoSigData;
+                                                window.infoSigData = sig;
+                                                window.dataInformasiKegiatan = data;
+                                                if (berubah || !adaCache) segarkanTampilanInformasi();
+                                                muatPesertaKegiatan({ lewatiBilaSama: true });
                                 })
                                 .withFailureHandler(function(error) {
                                                 console.error(error);
-                                                setHtml('informasiTabelContainer', errorState('Data kegiatan belum bisa dimuat'));
+                                                if (!adaCache) setHtml('informasiTabelContainer', errorState('Data kegiatan belum bisa dimuat'));
                                 })
                                 .getKegiatanPublik();
+}
+
+function segarkanTampilanInformasi() {
+                const sel = document.getElementById('filterTahunInformasi');
+                if (!sel) return;
+                isiFilterTahunInformasi(window.dataInformasiKegiatan);
+                const t = window.tahunInformasiPilihan;
+                if (t && Array.prototype.some.call(sel.options, function(o) { return o.value === t; })) sel.value = t;
+                filterInformasiTahun();
 }
 
 /* Unduh PDF Informasi Kegiatan: kegiatan pada tahun yang sedang dipilih, kolom sama dengan tabel (tanpa tombol Detail). */
@@ -6033,9 +6080,9 @@ function pesertaTeksInformasi(id) {
 }
 
 function unduhPdfInformasi() {
-                const sel = document.getElementById('filterTahunInformasi');
-                const tahun = sel ? sel.value : '';
-                const daftar = urutkanInformasi((window.dataInformasiKegiatan || []).filter(function(item) { return String(item.tahun) === String(tahun); }));
+                const h = daftarInformasiTampil();
+                const tahun = h.tahun;
+                const daftar = h.list;
                 if (!tahun || daftar.length === 0) { showToast('Tidak ada kegiatan untuk diunduh.'); return; }
                 if (!window.pesertaKegiatan) { showToast('Data peserta masih dimuat, coba lagi sebentar.'); return; }
                 const namaStatus = { sudah: 'Sudah', proses: 'Proses', belum: 'Belum' };
@@ -6053,7 +6100,7 @@ function unduhPdfInformasi() {
                                 doc.setFontSize(9);
                                 doc.setTextColor(90);
                                 doc.text(NAMA_SITUS_UNDUH + ' | Diunduh ' + tanggalIndonesia(), 40, 58);
-                                doc.text(daftar.length + ' kegiatan', 40, 71);
+                                doc.text(daftar.length + ' kegiatan' + (h.aktif ? ' (dari ' + h.total + ', sesuai filter)' : ''), 40, 71);
                                 doc.autoTable({
                                                 startY: 86,
                                                 head: [['No', 'Nama kegiatan', 'PIC', 'Angkas', 'Tanggal pelaksanaan', 'Peserta', 'Status', 'Sertifikat']],
@@ -6082,13 +6129,20 @@ const INFO_BULAN = { januari: 1, jan: 1, februari: 2, feb: 2, pebruari: 2, maret
                 juni: 6, jun: 6, juli: 7, jul: 7, agustus: 8, agu: 8, agt: 8, ags: 8, aug: 8, september: 9, sep: 9, sept: 9,
                 oktober: 10, okt: 10, oct: 10, november: 11, nov: 11, nop: 11, desember: 12, des: 12, dec: 12 };
 
-function tglMulaiInformasi(teks) {
+/* Membaca teks tanggal pelaksanaan menjadi {m: mulai, s: selesai} berupa angka yyyymmdd, atau null bila tidak terbaca. */
+function tglRentangInformasi(teks) {
                 const t = String(teks || '').toLowerCase().replace(/[\u2013\u2014]/g, '-').trim();
                 if (!t) return null;
-                let m = /(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t);                       // 2026-03-12
-                if (m) return Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]);
-                m = /(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/.exec(t);                   // 12/03/2026
-                if (m) return Number(m[3]) * 10000 + Number(m[2]) * 100 + Number(m[1]);
+                let semua = t.match(/\d{4}-\d{1,2}-\d{1,2}/g);                          // 2026-03-12
+                if (semua) {
+                                const angka = semua.map(function(x) { const q = x.split('-'); return Number(q[0]) * 10000 + Number(q[1]) * 100 + Number(q[2]); });
+                                return { m: angka[0], s: angka[angka.length - 1] };
+                }
+                semua = t.match(/\d{1,2}[\/.]\d{1,2}[\/.]\d{4}/g);                       // 12/03/2026
+                if (semua) {
+                                const angka = semua.map(function(x) { const q = x.split(/[\/.]/); return Number(q[2]) * 10000 + Number(q[1]) * 100 + Number(q[0]); });
+                                return { m: angka[0], s: angka[angka.length - 1] };
+                }
                 // Pisahkan bagian awal dan akhir rentang ("12 - 14 Maret 2026", "28 Februari - 2 Maret 2026")
                 const bagian = t.split(/\s*(?:-|s\.?\s*\/\s*d\.?|s\.?d\.?|sampai|hingga)\s+|\s+-\s*/);
                 const awal = (bagian[0] || '').trim();
@@ -6104,11 +6158,19 @@ function tglMulaiInformasi(teks) {
                 const bulan = a.m || z.m;
                 const tahun = a.y || z.y;
                 if (!d || !bulan || !tahun) return null;
-                return tahun * 10000 + bulan * 100 + d;
+                const mulai = tahun * 10000 + bulan * 100 + d;
+                let selesai = mulai;
+                if (bagian.length > 1 && z.d) {
+                                const bulanZ = z.m || bulan;
+                                const tahunZ = z.y || tahun;
+                                const kandidat = tahunZ * 10000 + bulanZ * 100 + z.d;
+                                if (kandidat >= mulai) selesai = kandidat;
+                }
+                return { m: mulai, s: selesai };
 }
 
 function urutkanInformasi(list) {
-                return (list || []).map(function(item, i) { return { item: item, i: i, k: tglMulaiInformasi(item.tanggal_pelaksanaan) }; })
+                return (list || []).map(function(item, i) { const r = tglRentangInformasi(item.tanggal_pelaksanaan); return { item: item, i: i, k: r ? r.m : null }; })
                                 .sort(function(a, b) {
                                                 if (a.k === null && b.k === null) return a.i - b.i;
                                                 if (a.k === null) return 1;
@@ -6116,6 +6178,34 @@ function urutkanInformasi(list) {
                                                 return a.k - b.k || a.i - b.i;
                                 })
                                 .map(function(x) { return x.item; });
+}
+
+/* Penanda waktu di daftar Informasi: Hari ini / Berlangsung / Berikutnya / n hari lagi. */
+function angkaHariIni() { return Number(isoHariIni().replace(/-/g, '')); }
+
+function selisihHariInformasi(dari, ke) {
+                function ms(n) { return Date.UTC(Math.floor(n / 10000), Math.floor(n / 100) % 100 - 1, n % 100); }
+                return Math.round((ms(ke) - ms(dari)) / 86400000);
+}
+
+function idKegiatanBerikutnya(hari) {   // kegiatan mendatang terdekat dari seluruh data (semua tahun)
+                let terbaik = null, kunci = null;
+                (window.dataInformasiKegiatan || []).forEach(function(item) {
+                                const r = tglRentangInformasi(item.tanggal_pelaksanaan);
+                                if (r && r.m > hari && (kunci === null || r.m < kunci)) { kunci = r.m; terbaik = String(item.id); }
+                });
+                return terbaik;
+}
+
+function penandaInformasi(item, hari, idBerikut) {
+                const r = tglRentangInformasi(item.tanggal_pelaksanaan);
+                if (!r || r.s < hari) return null;
+                if (r.m <= hari) return (r.m === hari && r.s === hari) ? { t: 'Hari ini', k: 'now' } : { t: 'Berlangsung', k: 'now' };
+                const sel = selisihHariInformasi(hari, r.m);
+                const teks = sel === 1 ? 'Besok' : sel + ' hari lagi';
+                if (String(item.id) === idBerikut) return { t: 'Berikutnya \u00b7 ' + teks, k: 'next' };
+                if (sel <= 7) return { t: teks, k: 'soon' };
+                return null;
 }
 
 function isiFilterTahunInformasi(data) {
@@ -6131,14 +6221,94 @@ function isiFilterTahunInformasi(data) {
                 }).join('');
 }
 
-function filterInformasiTahun() {
+function ubahTahunInformasi() {
+                const f = window.infoFilter = window.infoFilter || { q: '', status: '', pic: '', sert: '' };
+                f.pic = '';
+                const elPic = document.getElementById('filterPicInformasi');
+                if (elPic) elPic.value = '';
+                window.infoGulirOtomatis = true;
+                filterInformasiTahun({ tutup: true });
+}
+
+function cariInformasiTunda() {
+                clearTimeout(window.infoTimerCari);
+                window.infoTimerCari = setTimeout(function() { filterInformasiTahun({ tutup: true }); }, 200);
+}
+
+function bacaFilterInformasi() {
+                const f = window.infoFilter = window.infoFilter || { q: '', status: '', pic: '', sert: '' };
+                const peta = { q: 'searchInformasi', status: 'filterStatusInformasi', sert: 'filterSertInformasi', pic: 'filterPicInformasi' };
+                Object.keys(peta).forEach(function(k) { const el = document.getElementById(peta[k]); if (el) f[k] = el.value; });
+                return f;
+}
+
+function isiFilterPicInformasi(dataTahun, f) {
+                const sel = document.getElementById('filterPicInformasi');
+                if (!sel) return;
+                const set = {};
+                dataTahun.forEach(function(item) { const p = String(item.pic || '').trim(); if (p) set[p] = true; });
+                const daftar = Object.keys(set).sort(function(a, b) { return a.localeCompare(b, 'id'); });
+                if (f.pic && !set[f.pic]) f.pic = '';
+                const sig = daftar.join('|') + '#' + f.pic;
+                if (sel.dataset.sig === sig) return;
+                sel.innerHTML = '<option value="">Semua PIC</option>' + daftar.map(function(p) {
+                                return '<option value="' + escapeHtml(p) + '"' + (p === f.pic ? ' selected' : '') + '>' + escapeHtml(p) + '</option>';
+                }).join('');
+                sel.value = f.pic;
+                sel.dataset.sig = sig;
+}
+
+function cocokFilterInformasi(item, f) {
+                if (f.status && statusKey(item.status_pelaksanaan) !== f.status) return false;
+                if (f.sert) {
+                                const ada = String(item.status_sertifikat || '').trim().toLowerCase() === 'ada';
+                                if ((f.sert === 'ada') !== ada) return false;
+                }
+                if (f.pic && String(item.pic || '').trim() !== f.pic) return false;
+                const kata = String(f.q || '').toLowerCase().split(/\s+/).filter(Boolean);
+                if (kata.length) {
+                                const teks = [item.nama_kegiatan, item.pic, item.lokasi, item.angkas, item.tanggal_pelaksanaan].join(' ').toLowerCase();
+                                if (!kata.every(function(w) { return teks.indexOf(w) >= 0; })) return false;
+                }
+                return true;
+}
+
+/* Daftar yang sedang tampil di layar (tahun terpilih + filter, urut tanggal): dipakai tabel dan PDF. */
+function daftarInformasiTampil() {
+                const select = document.getElementById('filterTahunInformasi');
+                const tahun = select ? select.value : '';
+                const f = bacaFilterInformasi();
+                const dataTahun = (window.dataInformasiKegiatan || []).filter(function(item) { return String(item.tahun) === String(tahun); });
+                isiFilterPicInformasi(dataTahun, f);
+                const aktif = !!(String(f.q).trim() || f.status || f.sert || f.pic);
+                const list = urutkanInformasi(dataTahun).filter(function(item) { return cocokFilterInformasi(item, f); });
+                return { tahun: tahun, list: list, total: dataTahun.length, aktif: aktif };
+}
+
+function infoAturUlang() {
+                window.infoFilter = { q: '', status: '', pic: '', sert: '' };
+                ['searchInformasi', 'filterStatusInformasi', 'filterSertInformasi', 'filterPicInformasi'].forEach(function(id) { const el = document.getElementById(id); if (el) el.value = ''; });
+                filterInformasiTahun({ tutup: true });
+}
+
+function infoKeKegiatanBerikutnya() {
+                const tg = document.querySelector('.ik-target');
+                if (!tg) { showToast('Tidak ada kegiatan mendatang pada daftar ini.'); return; }
+                const kurang = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                tg.scrollIntoView({ block: 'center', behavior: kurang ? 'auto' : 'smooth' });
+}
+
+function filterInformasiTahun(opsi) {
+                opsi = (opsi && typeof opsi === 'object' && !opsi.target) ? opsi : {};
                 const select = document.getElementById('filterTahunInformasi');
                 if (!select) return;
                 window.tahunInformasiPilihan = select.value;
-                const hasil = urutkanInformasi((window.dataInformasiKegiatan || []).filter(function(item) {
-                                return String(item.tahun) === String(select.value);
-                }));
-                renderTabelInformasi(hasil);
+                const h = daftarInformasiTampil();
+                const gulir = !!window.infoGulirOtomatis && !h.aktif && h.list.length > 0;
+                if (h.list.length > 0 || h.total === 0) window.infoGulirOtomatis = false;
+                const reset = document.getElementById('infoReset');
+                if (reset) reset.style.display = h.aktif ? '' : 'none';
+                renderTabelInformasi(h.list, { total: h.total, tutup: !!opsi.tutup, gulir: gulir });
 }
 
 window.infoBukaId = null;
@@ -6213,26 +6383,39 @@ function infoToggle(id) {
         infoBuka(id);
 }
 
-function renderTabelInformasi(data) {
+function renderTabelInformasi(data, opsi) {
+        opsi = opsi || {};
         const container = document.getElementById('informasiTabelContainer');
         if (!container) return;
         infoSimpanCache();
 
         if (!data || data.length === 0) {
                 window.infoBukaId = null;
-                container.innerHTML = emptyState('Belum ada kegiatan untuk tahun tersebut', 'Pilih tahun lain.');
+                if (window.tlTimer) { clearInterval(window.tlTimer); window.tlTimer = null; window.tlDetail = null; }
+                container.innerHTML = (opsi.total > 0)
+                        ? emptyState('Tidak ada kegiatan yang cocok', 'Ubah kata kunci atau atur ulang filter.')
+                        : emptyState('Belum ada kegiatan untuk tahun tersebut', 'Pilih tahun lain.');
                 return;
         }
 
-        const dibuka = window.infoBukaId;
+        const dibuka = opsi.tutup ? null : window.infoBukaId;
+        const hari = angkaHariIni();
+        const idBerikut = idKegiatanBerikutnya(hari);
+        let idTarget = null;
+        const info = (opsi.total && opsi.total !== data.length)
+                ? 'Menampilkan ' + data.length + ' dari ' + opsi.total + ' kegiatan'
+                : 'Menampilkan ' + data.length + ' kegiatan';
         container.innerHTML =
-                '<p class="result-info">Menampilkan ' + data.length + ' kegiatan</p>' +
+                '<p class="result-info">' + info + '</p>' +
                 '<div class="ik-list">' + data.map(function(item, index) {
-                        return '<div class="ik-row" data-id="' + escapeHtml(item.id) + '">' +
+                        const tanda = penandaInformasi(item, hari, idBerikut);
+                        if (tanda && idTarget === null) idTarget = String(item.id);
+                        return '<div class="ik-row' + (tanda && String(item.id) === idTarget ? ' ik-target' : '') + '" data-id="' + escapeHtml(item.id) + '">' +
                                 '<button type="button" class="ik-h" aria-expanded="false" onclick="infoToggle(this.parentNode.dataset.id)">' +
                                         '<span class="ik-no">' + (index + 1) + '</span>' +
                                         '<span class="ik-nm"><b>' + escapeHtml(item.nama_kegiatan || '-') + '</b>' +
-                                                '<small>' + escapeHtml(item.tanggal_pelaksanaan || '-') + (item.pic ? ' &middot; PIC: ' + escapeHtml(item.pic) : '') + '</small></span>' +
+                                                '<small>' + escapeHtml(item.tanggal_pelaksanaan || '-') + (item.pic ? ' &middot; PIC: ' + escapeHtml(item.pic) : '') +
+                                                        (tanda ? '<span class="ik-tag ik-tag-' + tanda.k + '">' + escapeHtml(tanda.t) + '</span>' : '') + '</small></span>' +
                                         '<span class="ik-bd"><span class="ik-st">' + badgeStatus(item.status_pelaksanaan) + '</span>' +
                                                 '<span class="ik-cert"><small>Sertifikat</small>' + certBadge(item.status_sertifikat) + '</span></span>' +
                                         '<span class="ik-ch">' + ic('chev-down') + '</span>' +
@@ -6244,6 +6427,16 @@ function renderTabelInformasi(data) {
         window.infoBukaId = null;
         if (dibuka && infoBarisById(dibuka)) infoBuka(dibuka);
         else if (window.tlTimer) { clearInterval(window.tlTimer); window.tlTimer = null; window.tlDetail = null; }
+
+        // Saat halaman dibuka / tahun diganti: gulir ke kegiatan yang sedang berlangsung atau berikutnya.
+        if (opsi.gulir) {
+                const baris = Array.prototype.slice.call(container.querySelectorAll('.ik-row'));
+                const tg = container.querySelector('.ik-target');
+                if (tg && baris.indexOf(tg) >= 3) {
+                        const kurang = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                        tg.scrollIntoView({ block: 'center', behavior: kurang ? 'auto' : 'smooth' });
+                }
+        }
 }
 
 /* =====================================================
