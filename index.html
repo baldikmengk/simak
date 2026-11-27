@@ -6105,7 +6105,6 @@ window.infoCache = { panitia: {}, narasumber: {} };
 function infoPanelHtml(k) {
         const id = escapeHtml(k.id);
         return '<dl class="facts">' +
-                        factItem('PIC', escapeHtml(k.pic || '-')) +
                         factItem('Angkas', escapeHtml(k.angkas || '-')) +
                         factItem('Lokasi', escapeHtml(k.lokasi || '-')) +
                         factItem('Peserta', pesertaHtml(k.id)) +
@@ -6191,7 +6190,7 @@ function renderTabelInformasi(data) {
                                 '<button type="button" class="ik-h" aria-expanded="false" onclick="infoToggle(this.parentNode.dataset.id)">' +
                                         '<span class="ik-no">' + (index + 1) + '</span>' +
                                         '<span class="ik-nm"><b>' + escapeHtml(item.nama_kegiatan || '-') + '</b>' +
-                                                '<small>' + escapeHtml(item.tanggal_pelaksanaan || '-') + '</small></span>' +
+                                                '<small>' + escapeHtml(item.tanggal_pelaksanaan || '-') + (item.pic ? ' &middot; PIC: ' + escapeHtml(item.pic) : '') + '</small></span>' +
                                         '<span class="ik-bd"><span class="ik-st">' + badgeStatus(item.status_pelaksanaan) + '</span>' +
                                                 '<span class="ik-cert"><small>Sertifikat</small>' + certBadge(item.status_sertifikat) + '</span></span>' +
                                         '<span class="ik-ch">' + ic('chev-down') + '</span>' +
