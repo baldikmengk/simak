@@ -1434,6 +1434,39 @@ html:root .al-card:hover { transform: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .al-card { transition: none; } }
 
 /* =====================================================
+   INFORMASI KEGIATAN (v2: baris buka-tutup, satu baris terbuka)
+===================================================== */
+.ik-list { display: flex; flex-direction: column; gap: 8px; }
+.ik-row { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; transition: border-color .15s; }
+.ik-row:hover { border-color: var(--muted); }
+.ik-row.open { border-color: var(--brand); }
+.ik-h { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 16px; background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.ik-h:hover { background: var(--brand-soft); }
+.ik-h:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.ik-no { flex: none; width: 24px; font-size: 12.5px; color: var(--muted); }
+.ik-nm { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ik-nm b { font-size: 14.5px; font-weight: 600; line-height: 1.35; color: var(--ink); }
+.ik-nm small { font-size: 12.5px; color: var(--muted); }
+.ik-bd { flex: none; display: flex; align-items: center; gap: 16px; }
+.ik-cert { display: inline-flex; align-items: center; gap: 6px; }
+.ik-cert small { font-size: 11.5px; color: var(--muted); }
+.ik-ch { flex: none; display: grid; place-items: center; color: var(--muted); transition: transform .2s; }
+.ik-ch .ic { width: 18px; height: 18px; }
+.ik-row.open .ik-ch { transform: rotate(180deg); }
+.ik-b { display: none; padding: 4px 16px 18px 52px; border-top: 1px solid var(--line); }
+.ik-row.open .ik-b { display: block; }
+.ik-b .facts { border-top: 0; padding-top: 14px; }
+.ik-sub { margin: 22px 0 10px; font-size: 14px; font-weight: 600; color: var(--ink); }
+.ik-full { margin: 18px 0 0; }
+@media (max-width: 720px) {
+  .ik-h { flex-wrap: wrap; row-gap: 8px; }
+  .ik-ch { order: 2; }
+  .ik-bd { order: 3; flex-basis: 100%; padding-left: 36px; }
+  .ik-b { padding-left: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .ik-row, .ik-ch { transition: none; } }
+
+/* =====================================================
    SKIN v51 — Arc (kerangka) · beUI (gerak) · Bencho (interaksi)
    Lapisan tambahan; hapus blok ini untuk kembali ke tampilan v50.
 ===================================================== */
@@ -5646,9 +5679,17 @@ function simpanFormNarasumber() {
                                 }));
 }
 
+
+/* Respons lama (baris sudah ditutup/berganti) tidak boleh menimpa baris yang sedang terbuka. */
+function kidCocok(elId, id) {
+        const el = document.getElementById(elId);
+        return !!el && (!el.dataset.kid || el.dataset.kid === String(id));
+}
+
 function muatNarasumberDetail(id) {
                 google.script.run
                                 .withSuccessHandler(function(r) {
+                                                if (!kidCocok('narasumberFakta', id)) return;
                                                 const daftar = (r && r.narasumber) || [];
                                                 setHtml('narasumberFakta', daftar.length === 0 ? '-' : daftar.map(function(n) {
                                                                 return '<div class="anggota-detail"><button type="button" class="link-nama" data-kid="' + escapeHtml(id) + '" data-nid="' + escapeHtml(n.id || '') + '" onclick="bukaNarasumber(this.dataset.kid, this.dataset.nid)">' + escapeHtml(n.nama) + '</button>' + (n.instansi ? '<small>' + escapeHtml(n.instansi) + '</small>' : '') + '</div>';
@@ -5753,6 +5794,7 @@ function muatTimelineDetail(id) {
                 if (window.tlTimer) { clearInterval(window.tlTimer); window.tlTimer = null; }
                 google.script.run
                                 .withSuccessHandler(function(r) {
+                                                if (!kidCocok('timelineDetail', id)) return;
                                                 if (!r || !r.tahap || r.tahap.length === 0) {
                                                                 window.tlDetail = null;
                                                                 setHtml('timelineDetail', emptyState('Timeline belum diatur', 'Jadwal akan tampil setelah diatur oleh panitia.'));
@@ -5921,8 +5963,13 @@ function showDetailKegiatan(id) {
                 );
                 muatTimelineDetail(id);
                 muatNarasumberDetail(id);
+                muatPanitiaDetail(id);
+}
+
+function muatPanitiaDetail(id) {
                 google.script.run
                                 .withSuccessHandler(function(r) {
+                                                if (!kidCocok('panitiaDetail', id)) return;
                                                 if (!r || !r.peran || r.peran.length === 0) {
                                                                 setHtml('panitiaDetail', emptyState('Susunan panitia belum diisi', 'Informasi akan tampil setelah panitia mengisinya.'));
                                                                 return;
@@ -5939,6 +5986,7 @@ function showDetailKegiatan(id) {
 }
 
 function showInformasi() {
+                window.infoBukaId = null;
                 setActiveMenu('informasi');
                 render(
                                 pageHead('Informasi Kegiatan', 'Daftar kegiatan berdasarkan tahun pelaksanaan.') +
@@ -6051,33 +6099,110 @@ function filterInformasiTahun() {
                 renderTabelInformasi(hasil);
 }
 
+window.infoBukaId = null;
+window.infoCache = { panitia: {}, narasumber: {} };
+
+function infoPanelHtml(k) {
+        const id = escapeHtml(k.id);
+        return '<dl class="facts">' +
+                        factItem('PIC', escapeHtml(k.pic || '-')) +
+                        factItem('Angkas', escapeHtml(k.angkas || '-')) +
+                        factItem('Lokasi', escapeHtml(k.lokasi || '-')) +
+                        factItem('Peserta', pesertaHtml(k.id)) +
+                        factItem('Narasumber', '<div id="narasumberFakta" data-kid="' + id + '"><span style="color:var(--muted)">...</span></div>') +
+                '</dl>' +
+                '<h3 class="ik-sub">Timeline kegiatan</h3><div id="timelineDetail" data-kid="' + id + '">' + skeleton(2, 'sk-row') + '</div>' +
+                '<h3 class="ik-sub">Susunan panitia</h3><div id="panitiaDetail" data-kid="' + id + '">' + skeleton(2, 'sk-row') + '</div>' +
+                '<p class="ik-full"><button type="button" class="btn-text" data-id="' + id + '" onclick="showDetailKegiatan(this.dataset.id)">Buka halaman penuh' + ic('chev-right') + '</button></p>';
+}
+
+function infoSimpanCache() {
+        const id = window.infoBukaId;
+        if (!id) return;
+        const p = document.getElementById('panitiaDetail');
+        if (p && !p.querySelector('.skeleton') && p.textContent.indexOf('belum bisa dimuat') < 0) window.infoCache.panitia[id] = p.innerHTML;
+        const n = document.getElementById('narasumberFakta');
+        const t = n ? n.textContent.trim() : '';
+        if (n && t && t !== '...' && t !== '-') window.infoCache.narasumber[id] = n.innerHTML;
+}
+
+function infoBarisById(id) {
+        const rows = document.querySelectorAll('.ik-row');
+        for (let i = 0; i < rows.length; i++) if (rows[i].dataset.id === String(id)) return rows[i];
+        return null;
+}
+
+function infoTutup() {
+        infoSimpanCache();
+        const row = document.querySelector('.ik-row.open');
+        if (row) {
+                row.classList.remove('open');
+                row.querySelector('.ik-h').setAttribute('aria-expanded', 'false');
+                row.querySelector('.ik-b').innerHTML = '';
+                const st = row.querySelector('.ik-st');
+                if (st) st.removeAttribute('id');
+        }
+        if (window.tlTimer) { clearInterval(window.tlTimer); window.tlTimer = null; }
+        window.tlDetail = null;
+        window.infoBukaId = null;
+}
+
+function infoBuka(id) {
+        const row = infoBarisById(id);
+        const k = (window.dataInformasiKegiatan || []).filter(function(x) { return String(x.id) === String(id); })[0];
+        if (!row || !k) return;
+        row.classList.add('open');
+        row.querySelector('.ik-h').setAttribute('aria-expanded', 'true');
+        row.querySelector('.ik-b').innerHTML = infoPanelHtml(k);
+        const st = row.querySelector('.ik-st');
+        if (st) st.id = 'statusKegiatan';   // setStatusDetail() memperbarui badge status baris ini
+        window.infoBukaId = String(id);
+        const c = window.infoCache;
+        if (c.narasumber[id]) setHtml('narasumberFakta', c.narasumber[id]); else muatNarasumberDetail(id);
+        muatTimelineDetail(id);   // selalu segar: ceklist tahap bersifat langsung
+        if (c.panitia[id]) setHtml('panitiaDetail', c.panitia[id]); else muatPanitiaDetail(id);
+        const kurang = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        row.scrollIntoView({ block: 'nearest', behavior: kurang ? 'auto' : 'smooth' });
+}
+
+function infoToggle(id) {
+        const lama = window.infoBukaId;
+        if (lama) infoTutup();
+        if (lama && String(lama) === String(id)) return;
+        infoBuka(id);
+}
+
 function renderTabelInformasi(data) {
-                const container = document.getElementById('informasiTabelContainer');
-                if (!container) return;
+        const container = document.getElementById('informasiTabelContainer');
+        if (!container) return;
+        infoSimpanCache();
 
-                if (!data || data.length === 0) {
-                                container.innerHTML = emptyState('Belum ada kegiatan untuk tahun tersebut', 'Pilih tahun lain.');
-                                return;
-                }
+        if (!data || data.length === 0) {
+                window.infoBukaId = null;
+                container.innerHTML = emptyState('Belum ada kegiatan untuk tahun tersebut', 'Pilih tahun lain.');
+                return;
+        }
 
-                container.innerHTML =
-                                '<p class="result-info">Menampilkan ' + data.length + ' kegiatan</p>' +
-                                '<div class="table-wrap"><table class="table tabel-informasi"><thead><tr>' +
-                                                '<th class="c">No</th><th>Nama kegiatan</th><th>PIC</th><th>Angkas</th>' +
-                                                '<th>Tanggal pelaksanaan</th><th>Peserta</th><th class="c">Status</th><th class="c">Sertifikat</th></tr></thead><tbody>' +
-                                                data.map(function(item, index) {
-                                                                return '<tr>' +
-                                                                                '<td class="num">' + (index + 1) + '</td>' +
-                                                                                '<td class="strong"><button type="button" class="link-nama" data-id="' + escapeHtml(item.id) + '" onclick="showDetailKegiatan(this.dataset.id)">' + escapeHtml(item.nama_kegiatan || '-') + '</button></td>' +
-                                                                                '<td>' + escapeHtml(item.pic || '-') + '</td>' +
-                                                                                '<td>' + escapeHtml(item.angkas || '-') + '</td>' +
-                                                                                '<td>' + escapeHtml(item.tanggal_pelaksanaan || '-') + '</td>' +
-                                                                                '<td>' + pesertaHtml(item.id) + '</td>' +
-                                                                                '<td class="c">' + badgeStatus(item.status_pelaksanaan) + '</td>' +
-                                                                                '<td class="c">' + certBadge(item.status_sertifikat) + '</td>' +
-                                                                '</tr>';
-                                                }).join('') +
-                                '</tbody></table></div>';
+        const dibuka = window.infoBukaId;
+        container.innerHTML =
+                '<p class="result-info">Menampilkan ' + data.length + ' kegiatan</p>' +
+                '<div class="ik-list">' + data.map(function(item, index) {
+                        return '<div class="ik-row" data-id="' + escapeHtml(item.id) + '">' +
+                                '<button type="button" class="ik-h" aria-expanded="false" onclick="infoToggle(this.parentNode.dataset.id)">' +
+                                        '<span class="ik-no">' + (index + 1) + '</span>' +
+                                        '<span class="ik-nm"><b>' + escapeHtml(item.nama_kegiatan || '-') + '</b>' +
+                                                '<small>' + escapeHtml(item.tanggal_pelaksanaan || '-') + '</small></span>' +
+                                        '<span class="ik-bd"><span class="ik-st">' + badgeStatus(item.status_pelaksanaan) + '</span>' +
+                                                '<span class="ik-cert"><small>Sertifikat</small>' + certBadge(item.status_sertifikat) + '</span></span>' +
+                                        '<span class="ik-ch">' + ic('chev-down') + '</span>' +
+                                '</button>' +
+                                '<div class="ik-b"></div></div>';
+                }).join('') + '</div>';
+
+        // Daftar digambar ulang (mis. data peserta baru masuk): buka lagi baris yang tadi terbuka.
+        window.infoBukaId = null;
+        if (dibuka && infoBarisById(dibuka)) infoBuka(dibuka);
+        else if (window.tlTimer) { clearInterval(window.tlTimer); window.tlTimer = null; window.tlDetail = null; }
 }
 
 /* =====================================================
