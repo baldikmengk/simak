@@ -5336,8 +5336,7 @@ function muatDaftarPanitia() {
                                                                                 '<div class="fixed"><label class="field-label">&nbsp;</label><button type="button" class="btn btn-ghost btn-sm" onclick="keluarPanitia(\'Anda sudah keluar.\')">Keluar</button></div>' +
                                                                 '</div>' +
                                                                 accordion('accPanitia', 'users', 'Susunan Panitia', 'Nama panitia dan deskripsi tugas', 'panitiaForm', 'Pilih kegiatan terlebih dahulu.') +
-                                                                accordion('accTimeline', 'calendar', 'Atur Timeline', 'Jadwal dari persiapan sampai selesai', 'timelineForm', 'Pilih kegiatan terlebih dahulu.') +
-                                                                accordion('accLokasi', 'map-pin', 'Lokasi Kegiatan', 'Tempat pelaksanaan (tampil di menu Informasi)', 'lokasiForm', 'Pilih kegiatan terlebih dahulu.') +
+                                                                accordion('accTimeline', 'calendar', 'Atur Timeline', 'Lokasi dan jadwal dari persiapan sampai selesai', 'timelineForm', 'Pilih kegiatan terlebih dahulu.') +
                                                                 accordion('accPeserta', 'users', 'Peserta dan Sertifikat', 'Jumlah peserta dan status sertifikat (tampil di menu Informasi)', 'pesertaForm', 'Pilih kegiatan terlebih dahulu.') +
                                                                 accordion('accNarasumber', 'users', 'Data Narasumber', 'Pilih dari daftar narasumber atau tambah sendiri (data tidak ditampilkan ke publik)', 'narasumberForm', 'Pilih kegiatan terlebih dahulu.'));
                                                 isiPilihanKegiatanPanitia();
@@ -5381,7 +5380,6 @@ function hapusNamaPanitia(i, k) {
 function muatFormPanitia() {
                 const id = document.getElementById('panitiaKegiatan').value;
                 muatFormTimeline(id);
-                muatFormLokasi(id);
                 muatFormNarasumber(id);
                 muatFormPeserta(id);
                 if (!id) { setHtml('panitiaForm', '<p class="result-info">Pilih kegiatan untuk mengisi susunan panitia.</p>'); return; }
@@ -5445,8 +5443,9 @@ function rentangTanggal(mulai, selesai) {
 const TL_LAINNYA = 'Lainnya';
 
 function muatFormTimeline(id) {
-                if (!id) { setHtml('timelineForm', '<p class="result-info">Pilih kegiatan untuk mengatur timeline.</p>'); return; }
+                if (!id) { setHtml('timelineForm', '<p class="result-info">Pilih kegiatan untuk mengatur lokasi dan timeline.</p>'); return; }
                 setHtml('timelineForm', skeleton(2, 'sk-row'));
+                window.lokasiForm = { id: id, nilai: '', asal: '', siap: false };
                 google.script.run
                                 .withSuccessHandler(function(r) {
                                                 if (!r.ok) { keluarPanitia(r.msg); return; }
@@ -5455,7 +5454,22 @@ function muatFormTimeline(id) {
                                                                 const baku = window.timelineJenis.indexOf(x.tahap) > -1;
                                                                 return { jenis: baku ? x.tahap : TL_LAINNYA, nama: baku ? '' : x.tahap, mulai: x.mulai, selesai: x.selesai };
                                                 });
-                                                renderFormTimeline();
+                                                // Lokasi dimuat sesudah jadwal; bila gagal (mis. Code.gs belum diperbarui), jadwal tetap bisa dipakai.
+                                                google.script.run
+                                                                .withSuccessHandler(function(l) {
+                                                                                const sel = document.getElementById('panitiaKegiatan');
+                                                                                if (!sel || sel.value !== id) return;
+                                                                                if (l && l.ok) {
+                                                                                                const v = String((l.data && l.data.lokasi) || '');
+                                                                                                window.lokasiForm = { id: id, nilai: v, asal: v.replace(/\s+/g, ' ').trim(), siap: true };
+                                                                                } else if (l && /sesi/i.test(l.msg || '')) { keluarPanitia(l.msg); return; }
+                                                                                renderFormTimeline();
+                                                                })
+                                                                .withFailureHandler(function() {
+                                                                                const sel = document.getElementById('panitiaKegiatan');
+                                                                                if (sel && sel.value === id) renderFormTimeline();
+                                                                })
+                                                                .ambilLokasiForm(window.anggotaToken, id);
                                 })
                                 .withFailureHandler(function() { setHtml('timelineForm', errorState('Timeline belum bisa dimuat')); })
                                 .ambilTimelineForm(window.anggotaToken, id);
@@ -5464,7 +5478,17 @@ function muatFormTimeline(id) {
 function renderFormTimeline() {
                 const jenis = (window.timelineJenis || []).concat([TL_LAINNYA]);
                 const item = window.timelineItems || [];
+                const L = window.lokasiForm || { nilai: '', siap: false };
+                const blokLokasi =
+                                '<section class="panitia-role" style="margin-bottom:14px"><h3>Lokasi pelaksanaan</h3>' +
+                                (L.siap ? '' : '<p class="result-info" style="color:#b3261e;margin:0 0 8px">Lokasi belum bisa dimuat. Pastikan Code.gs sudah memuat fungsi ambilLokasiForm dan simpanLokasi.</p>') +
+                                '<input type="text" id="lkLokasi" class="input" maxlength="200" autocomplete="off" list="lkDaftar"' + (L.siap ? '' : ' disabled') +
+                                                ' placeholder="Ketik tempat dan kota/kabupaten, mis. Hotel Merapi, Sleman" value="' + escapeHtml(L.nilai) + '" oninput="window.lokasiForm.nilai = this.value">' +
+                                '<datalist id="lkDaftar">' + daftarLokasiTersimpan().map(function(l) { return '<option value="' + escapeHtml(l) + '"></option>'; }).join('') + '</datalist>' +
+                                '<p class="result-info" style="margin:6px 0 0">Tampil di menu Kegiatan - Informasi bila status kegiatan = Publik.</p></section>' +
+                                '<h3 style="margin:0 0 10px;font-size:15px">Jadwal</h3>';
                 setHtml('timelineForm',
+                                blokLokasi +
                                 (item.length === 0 ? '<p class="result-info">Belum ada jadwal. Klik "Tambah kegiatan" untuk memulai.</p>' : '') +
                                 item.map(function(x, i) {
                                                 return '<div class="tl-form-item">' +
@@ -5481,7 +5505,7 @@ function renderFormTimeline() {
                                                 '</div>';
                                 }).join('') +
                                 '<div class="tl-aksi"><button type="button" class="btn btn-ghost" onclick="tambahTimeline()">+ Tambah kegiatan</button>' +
-                                '<button type="button" class="btn" id="btnSimpanTimeline" onclick="simpanFormTimeline()">Simpan timeline</button></div>');
+                                '<button type="button" class="btn" id="btnSimpanTimeline" onclick="simpanFormTimeline()">Simpan lokasi dan timeline</button></div>');
 }
 
 function ubahTimeline(i, field, nilai) {
@@ -5514,80 +5538,53 @@ function simpanFormTimeline() {
                                 if (x.selesai && x.selesai < x.mulai) { showToast('Tanggal selesai lebih awal dari tanggal mulai' + no); return; }
                                 data.push({ tahap: tahap, mulai: x.mulai, selesai: x.selesai });
                 }
+                const L = window.lokasiForm || {};
+                const lokasiBaru = String(L.nilai || '').replace(/\s+/g, ' ').trim();
+                if (lokasiBaru.length > 200) { showToast('Lokasi terlalu panjang (maksimal 200 karakter).'); return; }
+                const lokasiUbah = !!(L.siap && L.id === id && lokasiBaru !== L.asal);
                 const btn = document.getElementById('btnSimpanTimeline');
                 btn.disabled = true;
+
+                function simpanJadwal() {
+                                google.script.run
+                                                .withSuccessHandler(function(r) {
+                                                                btn.disabled = false;
+                                                                if (r.ok) { showToast(lokasiUbah ? 'Lokasi dan timeline tersimpan.' : 'Timeline tersimpan.'); muatFormTimeline(id); return; }
+                                                                if (/sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
+                                                                showToast(r.msg || 'Gagal menyimpan.');
+                                                })
+                                                .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
+                                                .simpanTimeline(window.anggotaToken, id, data);
+                }
+
+                if (!lokasiUbah) { simpanJadwal(); return; }
+                // Lokasi disimpan lebih dulu; bila gagal, jadwal tidak diubah supaya pengguna bisa memperbaiki dan mencoba lagi.
                 google.script.run
                                 .withSuccessHandler(function(r) {
+                                                if (r && r.ok) {
+                                                                [window.dataInformasiKegiatan, window.dataKegiatanBeranda, window.daftarPanitia].forEach(function(list) {
+                                                                                (list || []).forEach(function(k) { if (String(k.id) === String(id)) k.lokasi = lokasiBaru; });
+                                                                });
+                                                                L.asal = lokasiBaru;
+                                                                if (r.segar === false) showToast('Lokasi tersimpan, tetapi tampilan di menu Informasi belum diperbarui. Simpan sekali lagi.');
+                                                                simpanJadwal();
+                                                                return;
+                                                }
                                                 btn.disabled = false;
-                                                if (r.ok) { showToast('Timeline tersimpan.'); muatFormTimeline(id); return; }
-                                                if (/sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
-                                                showToast(r.msg || 'Gagal menyimpan.');
+                                                if (r && /sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
+                                                showToast((r && r.msg) || 'Lokasi gagal disimpan.');
                                 })
-                                .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
-                                .simpanTimeline(window.anggotaToken, id, data);
+                                .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan lokasi. Coba lagi.'); })
+                                .simpanLokasi(window.anggotaToken, id, lokasiBaru);
 }
 
-/* =====================================================
-            LOKASI KEGIATAN (khusus anggota; tampil di menu Kegiatan - Informasi)
-            Sebelumnya diisi langsung di sheet KEGIATAN.
-            Server: ambilLokasiForm(token, id) -> {ok, data:{lokasi}}  dan  simpanLokasi(token, id, lokasi) -> {ok, msg, segar}
-===================================================== */
+/* Daftar saran lokasi dari kegiatan lain, agar penulisan lokasi seragam. */
 function daftarLokasiTersimpan() {
                 const set = {};
                 [window.dataInformasiKegiatan, window.dataKegiatanBeranda, window.daftarPanitia].forEach(function(list) {
                                 (list || []).forEach(function(k) { const l = String(k.lokasi || '').trim(); if (l) set[l] = true; });
                 });
                 return Object.keys(set).sort(function(a, b) { return a.localeCompare(b, 'id'); });
-}
-
-function muatFormLokasi(id) {
-                if (!id) { setHtml('lokasiForm', '<p class="result-info">Pilih kegiatan untuk mengisi lokasi.</p>'); return; }
-                setHtml('lokasiForm', skeleton(1, 'sk-row'));
-                google.script.run
-                                .withSuccessHandler(function(r) {
-                                                if (!r || !r.ok) {
-                                                                if (r && /sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
-                                                                setHtml('lokasiForm', errorState('Lokasi belum bisa dimuat', (r && r.msg) || ''));
-                                                                return;
-                                                }
-                                                const d = r.data || {};
-                                                setHtml('lokasiForm',
-                                                                '<p class="result-info" style="margin:0 0 12px">Tampil di menu Kegiatan - Informasi bila status kegiatan = Publik. Tulis tempat dan kota/kabupaten, mis. Hotel Merapi, Sleman.</p>' +
-                                                                '<div class="ns-grid"><div style="grid-column:1/-1"><label class="field-label" for="lkLokasi">Lokasi pelaksanaan</label>' +
-                                                                                '<input type="text" id="lkLokasi" class="input" maxlength="200" autocomplete="off" list="lkDaftar" placeholder="Ketik lokasi kegiatan" value="' + escapeHtml(d.lokasi || '') + '" ' +
-                                                                                                'onkeydown="if(event.key===\'Enter\')simpanFormLokasi()">' +
-                                                                                '<datalist id="lkDaftar">' + daftarLokasiTersimpan().map(function(l) { return '<option value="' + escapeHtml(l) + '"></option>'; }).join('') + '</datalist></div></div>' +
-                                                                '<div class="tl-aksi"><button type="button" class="btn" id="btnSimpanLokasi" onclick="simpanFormLokasi()">Simpan lokasi</button></div>');
-                                })
-                                .withFailureHandler(function() { setHtml('lokasiForm', errorState('Lokasi belum bisa dimuat', 'Pastikan Code.gs sudah memuat fungsi ambilLokasiForm dan simpanLokasi.')); })
-                                .ambilLokasiForm(window.anggotaToken, id);
-}
-
-function simpanFormLokasi() {
-                const id = document.getElementById('panitiaKegiatan').value;
-                if (!id) { showToast('Pilih kegiatan terlebih dahulu.'); return; }
-                const lokasi = String(document.getElementById('lkLokasi').value || '').replace(/\s+/g, ' ').trim();
-                if (lokasi.length > 200) { showToast('Lokasi terlalu panjang (maksimal 200 karakter).'); return; }
-                const btn = document.getElementById('btnSimpanLokasi');
-                btn.disabled = true;
-                google.script.run
-                                .withSuccessHandler(function(r) {
-                                                btn.disabled = false;
-                                                if (r && r.ok) {
-                                                                // Perbarui salinan data di halaman agar menu Informasi langsung menampilkan lokasi baru.
-                                                                [window.dataInformasiKegiatan, window.dataKegiatanBeranda, window.daftarPanitia].forEach(function(list) {
-                                                                                (list || []).forEach(function(k) { if (String(k.id) === String(id)) k.lokasi = lokasi; });
-                                                                });
-                                                                window.infoSigData = null;
-                                                                if (r.segar === false) showToast('Tersimpan, tetapi tampilan di menu Informasi belum diperbarui. Coba simpan sekali lagi.');
-                                                                muatFormLokasi(id);
-                                                                return;
-                                                }
-                                                if (r && /sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
-                                                showToast((r && r.msg) || 'Gagal menyimpan.');
-                                })
-                                .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
-                                .simpanLokasi(window.anggotaToken, id, lokasi);
 }
 
 /* =====================================================
