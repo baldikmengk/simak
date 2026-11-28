@@ -1684,6 +1684,19 @@ html:not([data-tema="gelap"]) .formasi-row { border-top-color: #d3dce7; }
 .link-sekolah:hover { text-decoration: underline; }
 .link-sekolah:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 3px; }
 </style>
+<style>
+/* Detail kegiatan: kartu Informasi (kiri) + kartu Timeline (kanan), kartu Susunan Panitia di bawahnya */
+.dk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; margin-bottom: 16px; }
+.dk-card { margin-bottom: 0; min-width: 0; }
+.dk-title { margin: 0 0 14px; }
+.dk-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 18px; border-top: 0; padding-top: 0; }
+.dk-facts .fact-wide { grid-column: 1 / -1; }
+.dk-facts dd { overflow-wrap: anywhere; }
+.dk-card .tl-ringkas { background: var(--paper); }
+.dk-panitia .table-wrap { border: 0; box-shadow: none; background: none; border-radius: 0; }
+@media (max-width: 900px) { .dk-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 420px) { .dk-facts { grid-template-columns: minmax(0, 1fr); } }
+</style>
 </head>
 <body>
 
@@ -5256,6 +5269,10 @@ function factItem(label, valueHtml) {
                 return '<div><dt>' + label + '</dt><dd>' + valueHtml + '</dd></div>';
 }
 
+function factItemLebar(label, valueHtml) {
+                return '<div class="fact-wide"><dt>' + label + '</dt><dd>' + valueHtml + '</dd></div>';
+}
+
 /* =====================================================
                         INFORMASI
 ===================================================== */
@@ -5841,11 +5858,13 @@ function muatTimelineDetail(id) {
                                 .withSuccessHandler(function(r) {
                                                 if (!kidCocok('timelineDetail', id)) return;
                                                 if (!r || !r.tahap || r.tahap.length === 0) {
+                                                                isiWaktuDetail(id, []);
                                                                 window.tlDetail = null;
                                                                 setHtml('timelineDetail', emptyState('Timeline belum diatur', 'Jadwal akan tampil setelah diatur oleh panitia.'));
                                                                 return;
                                                 }
                                                 window.tlDetail = { id: id, tahap: r.tahap, ceklist: {}, ceklistAktif: false, ceklistGagal: false, sibuk: false };
+                                                isiWaktuDetail(id, r.tahap);
                                                 renderTimelineDetail();
                                                 ambilCeklist(id);
                                                 // Sinkron otomatis tiap 30 detik (diam-diam): ceklist dari anggota lain muncul tanpa muat ulang halaman.
@@ -5858,6 +5877,15 @@ function muatTimelineDetail(id) {
                                 })
                                 .withFailureHandler(function() { setHtml('timelineDetail', errorState('Timeline belum bisa dimuat')); })
                                 .getTimelineKegiatan(id);
+}
+
+// Waktu kegiatan diambil dari tahap Pelaksanaan pada timeline (jam mulai - jam selesai).
+function isiWaktuDetail(id, tahap) {
+                const el = document.getElementById('waktuFakta');
+                if (!el || el.dataset.kid !== String(id)) return;
+                const pel = (tahap || []).filter(function(t) { return t.tahap === 'Pelaksanaan' && t.jam_mulai; })[0]
+                                || (tahap || []).filter(function(t) { return t.jam_mulai; })[0];
+                el.textContent = pel ? pukulTeks(pel.jam_mulai, pel.jam_selesai) : '-';
 }
 
 function ambilCeklist(id, senyap) {
@@ -5994,18 +6022,21 @@ function showDetailKegiatan(id) {
                 render(
                                 pageHead(escapeHtml(k.nama_kegiatan || 'Detail kegiatan'), 'Detail kegiatan tahun ' + escapeHtml(k.tahun || '')) +
                                 '<p><button type="button" class="btn btn-ghost btn-sm" onclick="go(\'informasi\')">Kembali ke daftar</button></p>' +
-                                '<article class="detail-card"><dl class="facts">' +
+                                '<div class="dk-grid">' +
+                                '<article class="detail-card dk-card"><h2 class="panel-title dk-title">Informasi kegiatan</h2><dl class="facts dk-facts">' +
                                                 factItem('PIC', escapeHtml(k.pic || '-')) +
                                                 factItem('Angkas', escapeHtml(k.angkas || '-')) +
                                                 factItem('Tanggal pelaksanaan', escapeHtml(k.tanggal_pelaksanaan || '-')) +
-                                                factItem('Lokasi', escapeHtml(k.lokasi || '-')) +
-                                                factItem('Peserta', pesertaHtml(k.id)) +
-                                                factItem('Narasumber', '<div id="narasumberFakta"><span style="color:var(--muted)">...</span></div>') +
+                                                factItem('Waktu', '<span id="waktuFakta" data-kid="' + escapeHtml(k.id) + '"><span style="color:var(--muted)">...</span></span>') +
+                                                factItemLebar('Lokasi', escapeHtml(k.lokasi || '-')) +
                                                 factItem('Status', '<span id="statusKegiatan">' + badgeStatus(k.status_pelaksanaan) + '</span>') +
                                                 factItem('Sertifikat', certBadge(k.status_sertifikat)) +
+                                                factItemLebar('Peserta', pesertaHtml(k.id)) +
+                                                factItemLebar('Narasumber', '<div id="narasumberFakta"><span style="color:var(--muted)">...</span></div>') +
                                 '</dl></article>' +
-                                '<h2 class="panel-title" style="margin:24px 0 12px">Timeline kegiatan</h2><div id="timelineDetail">' + skeleton(2, 'sk-row') + '</div>' +
-                                '<h2 class="panel-title" style="margin:24px 0 12px">Susunan panitia</h2><div id="panitiaDetail">' + skeleton(3, 'sk-row') + '</div>'
+                                '<article class="detail-card dk-card"><h2 class="panel-title dk-title">Timeline kegiatan</h2><div id="timelineDetail">' + skeleton(2, 'sk-row') + '</div></article>' +
+                '</div>' +
+                '<article class="detail-card dk-card dk-panitia"><h2 class="panel-title dk-title">Susunan panitia</h2><div id="panitiaDetail">' + skeleton(3, 'sk-row') + '</div></article>'
                 );
                 muatTimelineDetail(id);
                 muatNarasumberDetail(id);
