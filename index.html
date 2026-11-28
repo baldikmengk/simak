@@ -1695,6 +1695,11 @@ html:not([data-tema="gelap"]) .formasi-row { border-top-color: #d3dce7; }
 .dk-card .tl-ringkas { background: var(--paper); }
 .dk-panitia .table-wrap { border: 0; box-shadow: none; background: none; border-radius: 0; }
 @media (max-width: 900px) { .dk-grid { grid-template-columns: minmax(0, 1fr); } }
+.ik-b { container-type: inline-size; padding-top: 14px; }
+.ik-b .dk-facts { padding-top: 0; }
+.ik-b .dk-card { background: var(--surface); }
+.ik-b .dk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (max-width: 640px) { .ik-b .dk-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 420px) { .dk-facts { grid-template-columns: minmax(0, 1fr); } }
 </style>
 </head>
@@ -5946,6 +5951,7 @@ function renderTimelineDetail() {
 function setStatusDetail(status) {
                 const el = document.getElementById('statusKegiatan');
                 if (el) el.innerHTML = badgeStatus(status);
+                document.querySelectorAll('.dk-status').forEach(function(x) { x.innerHTML = badgeStatus(status); });
                 const d = window.tlDetail;
                 const k = d && (window.dataInformasiKegiatan || []).filter(function(x) { return String(x.id) === String(d.id); })[0];
                 if (k) k.status_pelaksanaan = status;
@@ -6385,14 +6391,21 @@ window.infoCache = { panitia: {}, narasumber: {} };
 
 function infoPanelHtml(k) {
         const id = escapeHtml(k.id);
-        return '<dl class="facts">' +
-                        factItem('Angkas', escapeHtml(k.angkas || '-')) +
-                        factItem('Lokasi', escapeHtml(k.lokasi || '-')) +
-                        factItem('Peserta', pesertaHtml(k.id)) +
-                        factItem('Narasumber', '<div id="narasumberFakta" data-kid="' + id + '"><span style="color:var(--muted)">...</span></div>') +
-                '</dl>' +
-                '<h3 class="ik-sub">Timeline kegiatan</h3><div id="timelineDetail" data-kid="' + id + '">' + skeleton(2, 'sk-row') + '</div>' +
-                '<h3 class="ik-sub">Susunan panitia</h3><div id="panitiaDetail" data-kid="' + id + '">' + skeleton(2, 'sk-row') + '</div>' +
+        return '<div class="dk-grid">' +
+                        '<article class="detail-card dk-card"><h3 class="panel-title dk-title">Informasi kegiatan</h3><dl class="facts dk-facts">' +
+                                factItem('PIC', escapeHtml(k.pic || '-')) +
+                                factItem('Angkas', escapeHtml(k.angkas || '-')) +
+                                factItem('Tanggal pelaksanaan', escapeHtml(k.tanggal_pelaksanaan || '-')) +
+                                factItem('Waktu', '<span id="waktuFakta" data-kid="' + id + '"><span style="color:var(--muted)">...</span></span>') +
+                                factItemLebar('Lokasi', escapeHtml(k.lokasi || '-')) +
+                                factItem('Status', '<span class="dk-status">' + badgeStatus(k.status_pelaksanaan) + '</span>') +
+                                factItem('Sertifikat', certBadge(k.status_sertifikat)) +
+                                factItemLebar('Peserta', pesertaHtml(k.id)) +
+                                factItemLebar('Narasumber', '<div id="narasumberFakta" data-kid="' + id + '"><span style="color:var(--muted)">...</span></div>') +
+                        '</dl></article>' +
+                        '<article class="detail-card dk-card"><h3 class="panel-title dk-title">Timeline kegiatan</h3><div id="timelineDetail" data-kid="' + id + '">' + skeleton(2, 'sk-row') + '</div></article>' +
+                '</div>' +
+                '<article class="detail-card dk-card dk-panitia"><h3 class="panel-title dk-title">Susunan panitia</h3><div id="panitiaDetail" data-kid="' + id + '">' + skeleton(2, 'sk-row') + '</div></article>' +
                 '<p class="ik-full"><button type="button" class="btn-text" data-id="' + id + '" onclick="showDetailKegiatan(this.dataset.id)">Buka halaman penuh' + ic('chev-right') + '</button></p>';
 }
 
