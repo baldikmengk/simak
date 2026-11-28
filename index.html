@@ -826,6 +826,7 @@ h1, h2, h3, p { margin: 0; }
 .ns-dialog .facts { margin: 12px 0 16px; }
 .tl-form-item { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; padding: 14px; margin-bottom: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 .ns-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.tl-ket { margin-top: 2px; font-size: 13px; color: var(--muted); }
 .tl-aksi { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .tl { border-left: 2px solid var(--line); margin-left: 6px; padding-left: 20px; }
 .tl-item { position: relative; margin-bottom: 16px; }
@@ -2177,7 +2178,7 @@ function renderAgendaBeranda(r) {
                                                                 '<div class="agenda-meta">' + escapeHtml(k.tahun || '') + '</div>' +
                                                                 (total ? '<div class="agenda-bar" aria-hidden="true"><i style="width:' + Math.round(selesai / total * 100) + '%"></i></div>' +
                                                                                 '<div class="agenda-meta">' + selesai + ' dari ' + total + ' tahap terlaksana' +
-                                                                                (next ? ' &middot; berikutnya: ' + escapeHtml(next.t) + ', ' + escapeHtml(rentangTanggal(next.m, next.s)) : '') + '</div>' : '') +
+                                                                                (next ? ' &middot; berikutnya: ' + escapeHtml(next.t) + ', ' + escapeHtml(rentangTanggal(next.m, next.s)) + (next.jm ? ', ' + escapeHtml(pukulTeks(next.jm, next.js).replace(/^Pukul/, 'pukul')) : '') : '') + '</div>' : '') +
                                                                 '</div></div>';
                                 }).join('');
 
@@ -2189,6 +2190,7 @@ function renderAgendaBeranda(r) {
                                                                 '<div class="agenda-isi"><b>' + escapeHtml(x.b.t) + '</b>' +
                                                                 '<div class="agenda-meta">' + namaKegiatanLink(x.k) + '</div>' +
                                                                 (x.b.s && x.b.s !== x.b.m ? '<div class="agenda-meta">' + escapeHtml(rentangTanggal(x.b.m, x.b.s)) + '</div>' : '') +
+                                                                (keteranganJadwal(x.b.l, x.b.jm, x.b.js) ? '<div class="agenda-meta">' + keteranganJadwal(x.b.l, x.b.jm, x.b.js) + '</div>' : '') +
                                                                 '</div></div>';
                                 }).join('');
 
@@ -5336,7 +5338,7 @@ function muatDaftarPanitia() {
                                                                                 '<div class="fixed"><label class="field-label">&nbsp;</label><button type="button" class="btn btn-ghost btn-sm" onclick="keluarPanitia(\'Anda sudah keluar.\')">Keluar</button></div>' +
                                                                 '</div>' +
                                                                 accordion('accPanitia', 'users', 'Susunan Panitia', 'Nama panitia dan deskripsi tugas', 'panitiaForm', 'Pilih kegiatan terlebih dahulu.') +
-                                                                accordion('accTimeline', 'calendar', 'Atur Timeline', 'Lokasi dan jadwal dari persiapan sampai selesai', 'timelineForm', 'Pilih kegiatan terlebih dahulu.') +
+                                                                accordion('accTimeline', 'calendar', 'Atur Timeline', 'Jadwal, lokasi, dan pukul dari persiapan sampai selesai', 'timelineForm', 'Pilih kegiatan terlebih dahulu.') +
                                                                 accordion('accPeserta', 'users', 'Peserta dan Sertifikat', 'Jumlah peserta dan status sertifikat (tampil di menu Informasi)', 'pesertaForm', 'Pilih kegiatan terlebih dahulu.') +
                                                                 accordion('accNarasumber', 'users', 'Data Narasumber', 'Pilih dari daftar narasumber atau tambah sendiri (data tidak ditampilkan ke publik)', 'narasumberForm', 'Pilih kegiatan terlebih dahulu.'));
                                                 isiPilihanKegiatanPanitia();
@@ -5440,36 +5442,36 @@ function rentangTanggal(mulai, selesai) {
                 return tanggalIndo(mulai) + ' - ' + tanggalIndo(selesai);
 }
 
+/* Pukul dan lokasi sebuah jadwal untuk ditampilkan: "Pukul 08.00 - 12.00 WIB · Hotel Merapi, Sleman". */
+function pukulTeks(jamMulai, jamSelesai) {
+                if (!jamMulai) return '';
+                const m = String(jamMulai).replace(':', '.');
+                return jamSelesai ? 'Pukul ' + m + ' - ' + String(jamSelesai).replace(':', '.') + ' WIB' : 'Pukul ' + m + ' WIB - selesai';
+}
+
+function keteranganJadwal(lokasi, jamMulai, jamSelesai) {
+                const bagian = [];
+                const p = pukulTeks(jamMulai, jamSelesai);
+                if (p) bagian.push(escapeHtml(p));
+                if (lokasi) bagian.push(escapeHtml(lokasi));
+                return bagian.join(' &middot; ');
+}
+
 const TL_LAINNYA = 'Lainnya';
 
 function muatFormTimeline(id) {
-                if (!id) { setHtml('timelineForm', '<p class="result-info">Pilih kegiatan untuk mengatur lokasi dan timeline.</p>'); return; }
+                if (!id) { setHtml('timelineForm', '<p class="result-info">Pilih kegiatan untuk mengatur timeline.</p>'); return; }
                 setHtml('timelineForm', skeleton(2, 'sk-row'));
-                window.lokasiForm = { id: id, nilai: '', asal: '', siap: false };
                 google.script.run
                                 .withSuccessHandler(function(r) {
                                                 if (!r.ok) { keluarPanitia(r.msg); return; }
                                                 window.timelineJenis = r.jenis || [];
                                                 window.timelineItems = (r.data || []).map(function(x) {
                                                                 const baku = window.timelineJenis.indexOf(x.tahap) > -1;
-                                                                return { jenis: baku ? x.tahap : TL_LAINNYA, nama: baku ? '' : x.tahap, mulai: x.mulai, selesai: x.selesai };
+                                                                return { jenis: baku ? x.tahap : TL_LAINNYA, nama: baku ? '' : x.tahap, mulai: x.mulai, selesai: x.selesai,
+                                                                                lokasi: x.lokasi || '', jamMulai: x.jam_mulai || '', jamSelesai: x.jam_selesai || '' };
                                                 });
-                                                // Lokasi dimuat sesudah jadwal; bila gagal (mis. Code.gs belum diperbarui), jadwal tetap bisa dipakai.
-                                                google.script.run
-                                                                .withSuccessHandler(function(l) {
-                                                                                const sel = document.getElementById('panitiaKegiatan');
-                                                                                if (!sel || sel.value !== id) return;
-                                                                                if (l && l.ok) {
-                                                                                                const v = String((l.data && l.data.lokasi) || '');
-                                                                                                window.lokasiForm = { id: id, nilai: v, asal: v.replace(/\s+/g, ' ').trim(), siap: true };
-                                                                                } else if (l && /sesi/i.test(l.msg || '')) { keluarPanitia(l.msg); return; }
-                                                                                renderFormTimeline();
-                                                                })
-                                                                .withFailureHandler(function() {
-                                                                                const sel = document.getElementById('panitiaKegiatan');
-                                                                                if (sel && sel.value === id) renderFormTimeline();
-                                                                })
-                                                                .ambilLokasiForm(window.anggotaToken, id);
+                                                renderFormTimeline();
                                 })
                                 .withFailureHandler(function() { setHtml('timelineForm', errorState('Timeline belum bisa dimuat')); })
                                 .ambilTimelineForm(window.anggotaToken, id);
@@ -5478,17 +5480,8 @@ function muatFormTimeline(id) {
 function renderFormTimeline() {
                 const jenis = (window.timelineJenis || []).concat([TL_LAINNYA]);
                 const item = window.timelineItems || [];
-                const L = window.lokasiForm || { nilai: '', siap: false };
-                const blokLokasi =
-                                '<section class="panitia-role" style="margin-bottom:14px"><h3>Lokasi pelaksanaan</h3>' +
-                                (L.siap ? '' : '<p class="result-info" style="color:#b3261e;margin:0 0 8px">Lokasi belum bisa dimuat. Pastikan Code.gs sudah memuat fungsi ambilLokasiForm dan simpanLokasi.</p>') +
-                                '<input type="text" id="lkLokasi" class="input" maxlength="200" autocomplete="off" list="lkDaftar"' + (L.siap ? '' : ' disabled') +
-                                                ' placeholder="Ketik tempat dan kota/kabupaten, mis. Hotel Merapi, Sleman" value="' + escapeHtml(L.nilai) + '" oninput="window.lokasiForm.nilai = this.value">' +
-                                '<datalist id="lkDaftar">' + daftarLokasiTersimpan().map(function(l) { return '<option value="' + escapeHtml(l) + '"></option>'; }).join('') + '</datalist>' +
-                                '<p class="result-info" style="margin:6px 0 0">Tampil di menu Kegiatan - Informasi bila status kegiatan = Publik.</p></section>' +
-                                '<h3 style="margin:0 0 10px;font-size:15px">Jadwal</h3>';
                 setHtml('timelineForm',
-                                blokLokasi +
+                                '<p class="result-info" style="margin:0 0 12px">Setiap jadwal bisa diberi lokasi dan pukul. Lokasi pada jadwal <b>Pelaksanaan</b> tampil di menu Kegiatan - Informasi (bila status kegiatan = Publik).</p>' +
                                 (item.length === 0 ? '<p class="result-info">Belum ada jadwal. Klik "Tambah kegiatan" untuk memulai.</p>' : '') +
                                 item.map(function(x, i) {
                                                 return '<div class="tl-form-item">' +
@@ -5501,11 +5494,15 @@ function renderFormTimeline() {
                                                                                 : '') +
                                                                 '<div><label class="field-label">Tanggal mulai</label><input type="date" class="input" value="' + escapeHtml(x.mulai) + '" onchange="ubahTimeline(' + i + ', \'mulai\', this.value)"></div>' +
                                                                 '<div><label class="field-label">Tanggal selesai (opsional)</label><input type="date" class="input" value="' + escapeHtml(x.selesai) + '" onchange="ubahTimeline(' + i + ', \'selesai\', this.value)"></div>' +
+                                                                '<div><label class="field-label">Pukul mulai, WIB (opsional)</label><input type="time" class="input" value="' + escapeHtml(x.jamMulai) + '" onchange="ubahTimeline(' + i + ', \'jamMulai\', this.value)"></div>' +
+                                                                '<div><label class="field-label">Pukul selesai (opsional)</label><input type="time" class="input" value="' + escapeHtml(x.jamSelesai) + '" onchange="ubahTimeline(' + i + ', \'jamSelesai\', this.value)"></div>' +
+                                                                '<div style="grid-column:1/-1"><label class="field-label">Lokasi (opsional)</label><input type="text" class="input" maxlength="200" autocomplete="off" list="lkDaftar" placeholder="Tempat dan kota/kabupaten, mis. Hotel Merapi, Sleman" value="' + escapeHtml(x.lokasi) + '" oninput="ubahTimeline(' + i + ', \'lokasi\', this.value)"></div>' +
                                                                 '<div><button type="button" class="btn btn-ghost btn-sm" onclick="hapusTimeline(' + i + ')">Hapus</button></div>' +
                                                 '</div>';
                                 }).join('') +
+                                '<datalist id="lkDaftar">' + daftarLokasiTersimpan().map(function(l) { return '<option value="' + escapeHtml(l) + '"></option>'; }).join('') + '</datalist>' +
                                 '<div class="tl-aksi"><button type="button" class="btn btn-ghost" onclick="tambahTimeline()">+ Tambah kegiatan</button>' +
-                                '<button type="button" class="btn" id="btnSimpanTimeline" onclick="simpanFormTimeline()">Simpan lokasi dan timeline</button></div>');
+                                '<button type="button" class="btn" id="btnSimpanTimeline" onclick="simpanFormTimeline()">Simpan timeline</button></div>');
 }
 
 function ubahTimeline(i, field, nilai) {
@@ -5515,7 +5512,7 @@ function ubahTimeline(i, field, nilai) {
 
 function tambahTimeline() {
                 window.timelineItems = window.timelineItems || [];
-                window.timelineItems.push({ jenis: '', nama: '', mulai: '', selesai: '' });
+                window.timelineItems.push({ jenis: '', nama: '', mulai: '', selesai: '', lokasi: '', jamMulai: '', jamSelesai: '' });
                 renderFormTimeline();
 }
 
@@ -5536,54 +5533,32 @@ function simpanFormTimeline() {
                                 if (!tahap) { showToast('Ketik nama kegiatan' + no); return; }
                                 if (!x.mulai) { showToast('Isi tanggal mulai' + no); return; }
                                 if (x.selesai && x.selesai < x.mulai) { showToast('Tanggal selesai lebih awal dari tanggal mulai' + no); return; }
-                                data.push({ tahap: tahap, mulai: x.mulai, selesai: x.selesai });
+                                if (x.jamSelesai && !x.jamMulai) { showToast('Isi pukul mulai' + no); return; }
+                                if (x.jamMulai && x.jamSelesai && (!x.selesai || x.selesai === x.mulai) && x.jamSelesai < x.jamMulai) { showToast('Pukul selesai lebih awal dari pukul mulai' + no); return; }
+                                data.push({ tahap: tahap, mulai: x.mulai, selesai: x.selesai,
+                                                lokasi: String(x.lokasi || '').replace(/\s+/g, ' ').trim(), jam_mulai: x.jamMulai || '', jam_selesai: x.jamSelesai || '' });
                 }
-                const L = window.lokasiForm || {};
-                const lokasiBaru = String(L.nilai || '').replace(/\s+/g, ' ').trim();
-                if (lokasiBaru.length > 200) { showToast('Lokasi terlalu panjang (maksimal 200 karakter).'); return; }
-                const lokasiUbah = !!(L.siap && L.id === id && lokasiBaru !== L.asal);
                 const btn = document.getElementById('btnSimpanTimeline');
                 btn.disabled = true;
-
-                function simpanJadwal() {
-                                google.script.run
-                                                .withSuccessHandler(function(r) {
-                                                                btn.disabled = false;
-                                                                if (r.ok) { showToast(lokasiUbah ? 'Lokasi dan timeline tersimpan.' : 'Timeline tersimpan.'); muatFormTimeline(id); return; }
-                                                                if (/sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
-                                                                showToast(r.msg || 'Gagal menyimpan.');
-                                                })
-                                                .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
-                                                .simpanTimeline(window.anggotaToken, id, data);
-                }
-
-                if (!lokasiUbah) { simpanJadwal(); return; }
-                // Lokasi disimpan lebih dulu; bila gagal, jadwal tidak diubah supaya pengguna bisa memperbaiki dan mencoba lagi.
                 google.script.run
                                 .withSuccessHandler(function(r) {
-                                                if (r && r.ok) {
-                                                                [window.dataInformasiKegiatan, window.dataKegiatanBeranda, window.daftarPanitia].forEach(function(list) {
-                                                                                (list || []).forEach(function(k) { if (String(k.id) === String(id)) k.lokasi = lokasiBaru; });
-                                                                });
-                                                                L.asal = lokasiBaru;
-                                                                if (r.segar === false) showToast('Lokasi tersimpan, tetapi tampilan di menu Informasi belum diperbarui. Simpan sekali lagi.');
-                                                                simpanJadwal();
-                                                                return;
-                                                }
                                                 btn.disabled = false;
-                                                if (r && /sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
-                                                showToast((r && r.msg) || 'Lokasi gagal disimpan.');
+                                                if (r.ok) { showToast('Timeline tersimpan.'); muatFormTimeline(id); return; }
+                                                if (/sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
+                                                showToast(r.msg || 'Gagal menyimpan.');
                                 })
-                                .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan lokasi. Coba lagi.'); })
-                                .simpanLokasi(window.anggotaToken, id, lokasiBaru);
+                                .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
+                                .simpanTimeline(window.anggotaToken, id, data);
 }
 
-/* Daftar saran lokasi dari kegiatan lain, agar penulisan lokasi seragam. */
+/* Daftar saran lokasi dari kegiatan dan jadwal lain, agar penulisan lokasi seragam. */
 function daftarLokasiTersimpan() {
                 const set = {};
+                function catat(teks) { String(teks || '').split(';').forEach(function(l) { l = l.replace(/\s+/g, ' ').trim(); if (l) set[l] = true; }); }
                 [window.dataInformasiKegiatan, window.dataKegiatanBeranda, window.daftarPanitia].forEach(function(list) {
-                                (list || []).forEach(function(k) { const l = String(k.lokasi || '').trim(); if (l) set[l] = true; });
+                                (list || []).forEach(function(k) { catat(k.lokasi); });
                 });
+                (window.timelineItems || []).forEach(function(x) { catat(x.lokasi); });
                 return Object.keys(set).sort(function(a, b) { return a.localeCompare(b, 'id'); });
 }
 
@@ -5934,6 +5909,7 @@ function renderTimelineDetail() {
                                                                 : '<b>' + escapeHtml(t.tahap) + '</b>';
                                                 return '<div class="tl-item' + (done ? ' tl-done' : '') + '">' + judul +
                                                                 '<div>' + escapeHtml(rentangTanggal(t.mulai, t.selesai)) + '</div>' +
+                                                                (keteranganJadwal(t.lokasi, t.jam_mulai, t.jam_selesai) ? '<div class="tl-ket">' + keteranganJadwal(t.lokasi, t.jam_mulai, t.jam_selesai) + '</div>' : '') +
                                                                 (done && c.waktu ? '<small class="tl-waktu">Terlaksana, dicentang ' + escapeHtml(c.waktu) + '</small>' : '') + '</div>';
                                 }).join('') + '</div>');
 }
@@ -8690,7 +8666,6 @@ document.addEventListener('DOMContentLoaded', function() {
     simpanFotoDataSekarang: ['Menyimpan foto data', 'Foto data tersimpan'],
     simpanPanitia: ['Menyimpan susunan panitia', 'Susunan panitia tersimpan'],
     simpanTimeline: ['Menyimpan timeline', 'Timeline tersimpan'],
-    simpanLokasi: ['Menyimpan lokasi', 'Lokasi tersimpan'],
     simpanPesertaSertifikat: ['Menyimpan peserta dan sertifikat', 'Peserta dan sertifikat tersimpan'],
     simpanNarasumber: ['Menyimpan data narasumber', 'Data narasumber tersimpan'],
     simpanTautan: ['Menyimpan tautan', 'Tautan tersimpan'],
