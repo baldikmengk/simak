@@ -5337,6 +5337,7 @@ function muatDaftarPanitia() {
                                                                 '</div>' +
                                                                 accordion('accPanitia', 'users', 'Susunan Panitia', 'Nama panitia dan deskripsi tugas', 'panitiaForm', 'Pilih kegiatan terlebih dahulu.') +
                                                                 accordion('accTimeline', 'calendar', 'Atur Timeline', 'Jadwal dari persiapan sampai selesai', 'timelineForm', 'Pilih kegiatan terlebih dahulu.') +
+                                                                accordion('accLokasi', 'map-pin', 'Lokasi Kegiatan', 'Tempat pelaksanaan (tampil di menu Informasi)', 'lokasiForm', 'Pilih kegiatan terlebih dahulu.') +
                                                                 accordion('accPeserta', 'users', 'Peserta dan Sertifikat', 'Jumlah peserta dan status sertifikat (tampil di menu Informasi)', 'pesertaForm', 'Pilih kegiatan terlebih dahulu.') +
                                                                 accordion('accNarasumber', 'users', 'Data Narasumber', 'Pilih dari daftar narasumber atau tambah sendiri (data tidak ditampilkan ke publik)', 'narasumberForm', 'Pilih kegiatan terlebih dahulu.'));
                                                 isiPilihanKegiatanPanitia();
@@ -5380,6 +5381,7 @@ function hapusNamaPanitia(i, k) {
 function muatFormPanitia() {
                 const id = document.getElementById('panitiaKegiatan').value;
                 muatFormTimeline(id);
+                muatFormLokasi(id);
                 muatFormNarasumber(id);
                 muatFormPeserta(id);
                 if (!id) { setHtml('panitiaForm', '<p class="result-info">Pilih kegiatan untuk mengisi susunan panitia.</p>'); return; }
@@ -5523,6 +5525,69 @@ function simpanFormTimeline() {
                                 })
                                 .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
                                 .simpanTimeline(window.anggotaToken, id, data);
+}
+
+/* =====================================================
+            LOKASI KEGIATAN (khusus anggota; tampil di menu Kegiatan - Informasi)
+            Sebelumnya diisi langsung di sheet KEGIATAN.
+            Server: ambilLokasiForm(token, id) -> {ok, data:{lokasi}}  dan  simpanLokasi(token, id, lokasi) -> {ok, msg, segar}
+===================================================== */
+function daftarLokasiTersimpan() {
+                const set = {};
+                [window.dataInformasiKegiatan, window.dataKegiatanBeranda, window.daftarPanitia].forEach(function(list) {
+                                (list || []).forEach(function(k) { const l = String(k.lokasi || '').trim(); if (l) set[l] = true; });
+                });
+                return Object.keys(set).sort(function(a, b) { return a.localeCompare(b, 'id'); });
+}
+
+function muatFormLokasi(id) {
+                if (!id) { setHtml('lokasiForm', '<p class="result-info">Pilih kegiatan untuk mengisi lokasi.</p>'); return; }
+                setHtml('lokasiForm', skeleton(1, 'sk-row'));
+                google.script.run
+                                .withSuccessHandler(function(r) {
+                                                if (!r || !r.ok) {
+                                                                if (r && /sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
+                                                                setHtml('lokasiForm', errorState('Lokasi belum bisa dimuat', (r && r.msg) || ''));
+                                                                return;
+                                                }
+                                                const d = r.data || {};
+                                                setHtml('lokasiForm',
+                                                                '<p class="result-info" style="margin:0 0 12px">Tampil di menu Kegiatan - Informasi bila status kegiatan = Publik. Tulis tempat dan kota/kabupaten, mis. Hotel Merapi, Sleman.</p>' +
+                                                                '<div class="ns-grid"><div style="grid-column:1/-1"><label class="field-label" for="lkLokasi">Lokasi pelaksanaan</label>' +
+                                                                                '<input type="text" id="lkLokasi" class="input" maxlength="200" autocomplete="off" list="lkDaftar" placeholder="Ketik lokasi kegiatan" value="' + escapeHtml(d.lokasi || '') + '" ' +
+                                                                                                'onkeydown="if(event.key===\'Enter\')simpanFormLokasi()">' +
+                                                                                '<datalist id="lkDaftar">' + daftarLokasiTersimpan().map(function(l) { return '<option value="' + escapeHtml(l) + '"></option>'; }).join('') + '</datalist></div></div>' +
+                                                                '<div class="tl-aksi"><button type="button" class="btn" id="btnSimpanLokasi" onclick="simpanFormLokasi()">Simpan lokasi</button></div>');
+                                })
+                                .withFailureHandler(function() { setHtml('lokasiForm', errorState('Lokasi belum bisa dimuat', 'Pastikan Code.gs sudah memuat fungsi ambilLokasiForm dan simpanLokasi.')); })
+                                .ambilLokasiForm(window.anggotaToken, id);
+}
+
+function simpanFormLokasi() {
+                const id = document.getElementById('panitiaKegiatan').value;
+                if (!id) { showToast('Pilih kegiatan terlebih dahulu.'); return; }
+                const lokasi = String(document.getElementById('lkLokasi').value || '').replace(/\s+/g, ' ').trim();
+                if (lokasi.length > 200) { showToast('Lokasi terlalu panjang (maksimal 200 karakter).'); return; }
+                const btn = document.getElementById('btnSimpanLokasi');
+                btn.disabled = true;
+                google.script.run
+                                .withSuccessHandler(function(r) {
+                                                btn.disabled = false;
+                                                if (r && r.ok) {
+                                                                // Perbarui salinan data di halaman agar menu Informasi langsung menampilkan lokasi baru.
+                                                                [window.dataInformasiKegiatan, window.dataKegiatanBeranda, window.daftarPanitia].forEach(function(list) {
+                                                                                (list || []).forEach(function(k) { if (String(k.id) === String(id)) k.lokasi = lokasi; });
+                                                                });
+                                                                window.infoSigData = null;
+                                                                if (r.segar === false) showToast('Tersimpan, tetapi tampilan di menu Informasi belum diperbarui. Coba simpan sekali lagi.');
+                                                                muatFormLokasi(id);
+                                                                return;
+                                                }
+                                                if (r && /sesi/i.test(r.msg || '')) { keluarPanitia(r.msg); return; }
+                                                showToast((r && r.msg) || 'Gagal menyimpan.');
+                                })
+                                .withFailureHandler(function() { btn.disabled = false; showToast('Gagal menyimpan. Coba lagi.'); })
+                                .simpanLokasi(window.anggotaToken, id, lokasi);
 }
 
 /* =====================================================
@@ -8628,6 +8693,7 @@ document.addEventListener('DOMContentLoaded', function() {
     simpanFotoDataSekarang: ['Menyimpan foto data', 'Foto data tersimpan'],
     simpanPanitia: ['Menyimpan susunan panitia', 'Susunan panitia tersimpan'],
     simpanTimeline: ['Menyimpan timeline', 'Timeline tersimpan'],
+    simpanLokasi: ['Menyimpan lokasi', 'Lokasi tersimpan'],
     simpanPesertaSertifikat: ['Menyimpan peserta dan sertifikat', 'Peserta dan sertifikat tersimpan'],
     simpanNarasumber: ['Menyimpan data narasumber', 'Data narasumber tersimpan'],
     simpanTautan: ['Menyimpan tautan', 'Tautan tersimpan'],
