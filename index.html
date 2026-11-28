@@ -6140,7 +6140,9 @@ function segarkanTampilanInformasi() {
                 filterInformasiTahun();
 }
 
-/* Unduh PDF Informasi Kegiatan: kegiatan pada tahun yang sedang dipilih, kolom sama dengan tabel (tanpa tombol Detail). */
+/* Unduh PDF Informasi Kegiatan: satu halaman per kegiatan (tahun dan filter yang sedang dipilih).
+   Tiap halaman memuat informasi kegiatan, timeline, dan susunan panitia. Bila isi satu kegiatan melebihi
+   satu halaman, kelanjutannya memakai halaman berikutnya dan footer tetap menyebut kegiatan yang sama. */
 function pesertaTeksInformasi(id) {
                 const list = (window.pesertaKegiatan || {})[String(id || '').trim()];
                 if (!list || list.length === 0) return '-';
@@ -6154,48 +6156,191 @@ function pesertaTeksInformasi(id) {
                 }).join('\n');
 }
 
+// Mengambil timeline, panitia, narasumber, dan ceklist satu kegiatan. Bagian yang gagal dimuat dibiarkan kosong.
+function ambilDetailPdf(id, selesai) {
+                const hasil = { timeline: null, panitia: null, narasumber: null, ceklist: null };
+                let sisa = 4, sudah = false;
+                const pengaman = setTimeout(akhir, 60000);
+                function akhir() { if (sudah) return; sudah = true; clearTimeout(pengaman); selesai(hasil); }
+                function panggil(kunci, nama) {
+                                let dihitung = false;
+                                function tandai(r) { if (dihitung) return; dihitung = true; hasil[kunci] = r || null; if (--sisa === 0) akhir(); }
+                                try {
+                                                google.script.run.withSuccessHandler(tandai).withFailureHandler(function() { tandai(null); })[nama](id);
+                                } catch (e) { tandai(null); }
+                }
+                window.simakSenyap = true;   // proses latar: tidak memunculkan kartu "Memuat data..." berulang
+                try {
+                                panggil('timeline', 'getTimelineKegiatan');
+                                panggil('panitia', 'getPanitiaKegiatan');
+                                panggil('narasumber', 'getNarasumberKegiatan');
+                                panggil('ceklist', 'getCeklistTimeline');
+                } finally { window.simakSenyap = false; }
+}
+
+// Mengambil detail semua kegiatan, paling banyak 3 kegiatan sekaligus agar tidak membebani Apps Script.
+function ambilSemuaDetailPdf(daftar, kemajuan, selesai) {
+                const hasil = new Array(daftar.length);
+                let berikut = 0, aktif = 0, tuntas = 0;
+                function jalan() {
+                                while (aktif < 3 && berikut < daftar.length) {
+                                                (function(i) {
+                                                                aktif++;
+                                                                ambilDetailPdf(daftar[i].id, function(h) {
+                                                                                hasil[i] = h; aktif--; tuntas++;
+                                                                                kemajuan(tuntas);
+                                                                                if (tuntas === daftar.length) selesai(hasil); else jalan();
+                                                                });
+                                                })(berikut++);
+                                }
+                }
+                jalan();
+}
+
+function gambarPdfInformasi(daftar, detail, tahun, h) {
+                const doc = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+                const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+                const namaStatus = { sudah: 'Sudah', proses: 'Proses', belum: 'Belum' };
+                const mulaiHal = [];
+                const gayaTabel = { theme: 'grid', styles: { fontSize: 8.5, cellPadding: 4, overflow: 'linebreak', textColor: 30, valign: 'top', lineColor: [200, 208, 216], lineWidth: 0.5 },
+                                headStyles: { fillColor: [18, 59, 93], textColor: 255 }, margin: { left: 40, right: 40, top: 44, bottom: 44 } };
+
+                function bagian(teks, y) {
+                                if (y > H - 120) { doc.addPage(); y = 44; }
+                                doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(18, 59, 93);
+                                doc.text(teks, 40, y);
+                                return y + 8;
+                }
+                function catatan(teks, y) {
+                                doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(110);
+                                doc.text(teks, 40, y + 10);
+                                return y + 28;
+                }
+
+                daftar.forEach(function(item, i) {
+                                if (i > 0) doc.addPage();
+                                mulaiHal.push(doc.internal.getNumberOfPages());
+                                const d = detail[i] || {};
+                                const tahap = (d.timeline && d.timeline.tahap) || [];
+                                const peran = (d.panitia && d.panitia.peran) || [];
+                                const ns = (d.narasumber && d.narasumber.narasumber) || [];
+                                const cek = (d.ceklist && d.ceklist.ok) ? (d.ceklist.data || {}) : null;
+                                let y = 46;
+
+                                doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(90);
+                                doc.text('Informasi Kegiatan Tahun ' + tahun + '  |  Kegiatan ' + (i + 1) + ' dari ' + daftar.length, 40, y);
+                                y += 22;
+                                doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(18, 59, 93);
+                                const judul = doc.splitTextToSize(String(item.nama_kegiatan || '-'), W - 80);
+                                doc.text(judul, 40, y);
+                                y += judul.length * 18 - 4;
+                                doc.setDrawColor(233, 180, 76); doc.setLineWidth(1.5);
+                                doc.line(40, y, W - 40, y);
+                                y += 20;
+
+                                // Waktu diambil dari tahap Pelaksanaan pada timeline.
+                                const pel = tahap.filter(function(t) { return t.tahap === 'Pelaksanaan' && t.jam_mulai; })[0] || tahap.filter(function(t) { return t.jam_mulai; })[0];
+                                const waktu = pel ? pukulTeks(pel.jam_mulai, pel.jam_selesai) : '-';
+                                const nsTeks = ns.length ? ns.map(function(n) { return n.nama + (n.instansi ? ' (' + n.instansi + ')' : ''); }).join('\n') : '-';
+
+                                y = bagian('Informasi kegiatan', y);
+                                doc.autoTable(Object.assign({}, gayaTabel, {
+                                                startY: y,
+                                                body: [
+                                                                ['PIC', String(item.pic || '-')],
+                                                                ['Angkas', String(item.angkas || '-')],
+                                                                ['Tanggal pelaksanaan', String(item.tanggal_pelaksanaan || '-')],
+                                                                ['Waktu', waktu],
+                                                                ['Lokasi', String(item.lokasi || '-')],
+                                                                ['Peserta', pesertaTeksInformasi(item.id)],
+                                                                ['Narasumber', nsTeks],
+                                                                ['Status', namaStatus[statusKey(item.status_pelaksanaan)]],
+                                                                ['Sertifikat', String(item.status_sertifikat || '').trim().toLowerCase() === 'ada' ? 'Ada' : 'Tidak']
+                                                ],
+                                                columnStyles: { 0: { cellWidth: 120, fontStyle: 'bold', fillColor: [238, 243, 248] } }
+                                }));
+                                y = doc.lastAutoTable.finalY + 22;
+
+                                y = bagian('Timeline kegiatan', y);
+                                if (tahap.length === 0) {
+                                                y = catatan(d.timeline ? 'Timeline belum diatur.' : 'Timeline belum bisa dimuat.', y);
+                                } else {
+                                                const adaCek = !!cek;
+                                                doc.autoTable(Object.assign({}, gayaTabel, {
+                                                                startY: y,
+                                                                head: [adaCek ? ['Tahap', 'Tanggal', 'Jam dan lokasi', 'Terlaksana'] : ['Tahap', 'Tanggal', 'Jam dan lokasi']],
+                                                                body: tahap.map(function(t) {
+                                                                                const ket = [pukulTeks(t.jam_mulai, t.jam_selesai), t.lokasi].filter(Boolean).join(' | ') || '-';
+                                                                                const baris = [String(t.tahap || '-'), rentangTanggal(t.mulai, t.selesai) || '-', ket];
+                                                                                if (adaCek) { const c = cek[kunciTahap(t)]; baris.push(c && c.done ? 'Ya' : 'Belum'); }
+                                                                                return baris;
+                                                                }),
+                                                                columnStyles: adaCek ? { 0: { cellWidth: 110 }, 1: { cellWidth: 130 }, 3: { cellWidth: 60, halign: 'center' } } : { 0: { cellWidth: 110 }, 1: { cellWidth: 130 } }
+                                                }));
+                                                y = doc.lastAutoTable.finalY + 22;
+                                }
+
+                                y = bagian('Susunan panitia', y);
+                                if (peran.length === 0) {
+                                                y = catatan(d.panitia ? 'Susunan panitia belum diisi.' : 'Susunan panitia belum bisa dimuat.', y);
+                                } else {
+                                                doc.autoTable(Object.assign({}, gayaTabel, {
+                                                                startY: y,
+                                                                head: [['Peran', 'Nama dan jabatan', 'Tugas']],
+                                                                body: peran.map(function(p) {
+                                                                                const nama = (p.anggota || [{ nama: p.nama }]).map(function(a) {
+                                                                                                const sub = [a.jabatan || '', a.nip ? 'NIP ' + a.nip : ''].filter(Boolean).join(' | ');
+                                                                                                return String(a.nama || '-') + (sub ? '\n' + sub : '');
+                                                                                }).join('\n');
+                                                                                return [String(p.peran || '-'), nama, String(p.tugas || '-')];
+                                                                }),
+                                                                columnStyles: { 0: { cellWidth: 100, fontStyle: 'bold' }, 1: { cellWidth: 170 } }
+                                                }));
+                                }
+                });
+
+                // Footer ditulis sekali per halaman setelah semua isi selesai.
+                const total = doc.internal.getNumberOfPages();
+                for (let p = 1; p <= total; p++) {
+                                doc.setPage(p);
+                                let k = 0;
+                                mulaiHal.forEach(function(m, idx) { if (m <= p) k = idx; });
+                                doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120);
+                                doc.text(NAMA_SITUS_UNDUH + ' | Diunduh ' + tanggalIndonesia(), 40, H - 22);
+                                doc.text('Kegiatan ' + (k + 1) + ' dari ' + daftar.length + ' | Halaman ' + p + ' dari ' + total, W - 40, H - 22, { align: 'right' });
+                }
+                doc.save(namaFileUnduh('Detail Kegiatan ' + tahun) + '.pdf');
+}
+
 function unduhPdfInformasi() {
+                if (window.pdfInfoSibuk) { showToast('PDF sedang disiapkan, mohon tunggu.'); return; }
                 const h = daftarInformasiTampil();
                 const tahun = h.tahun;
                 const daftar = h.list;
                 if (!tahun || daftar.length === 0) { showToast('Tidak ada kegiatan untuk diunduh.'); return; }
                 if (!window.pesertaKegiatan) { showToast('Data peserta masih dimuat, coba lagi sebentar.'); return; }
-                const namaStatus = { sudah: 'Sudah', proses: 'Proses', belum: 'Belum' };
-                const baris = daftar.map(function(item, i) {
-                                return [i + 1, String(item.nama_kegiatan || '-'), String(item.pic || '-'), String(item.angkas || '-'),
-                                                String(item.tanggal_pelaksanaan || '-'), pesertaTeksInformasi(item.id),
-                                                namaStatus[statusKey(item.status_pelaksanaan)],
-                                                String(item.status_sertifikat || '').trim().toLowerCase() === 'ada' ? 'Ada' : 'Tidak'];
-                });
-                showToast('Menyiapkan PDF...');
+                window.pdfInfoSibuk = true;
+                const pulau = window.SimakIsland ? window.SimakIsland.work('Menyiapkan PDF (0 dari ' + daftar.length + ')\u2026', 600000) : null;
+                if (!pulau) showToast('Menyiapkan PDF...');
+                function gagal() {
+                                window.pdfInfoSibuk = false;
+                                if (pulau) pulau.finish('Gagal menyiapkan PDF. Periksa koneksi internet, lalu coba lagi.', 'err');
+                                else showToast('Pustaka PDF belum bisa dimuat. Periksa koneksi internet, lalu coba lagi.');
+                }
                 muatPdf(function() {
-                                const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-                                doc.setFontSize(16);
-                                doc.text('Informasi Kegiatan Tahun ' + tahun, 40, 42);
-                                doc.setFontSize(9);
-                                doc.setTextColor(90);
-                                doc.text(NAMA_SITUS_UNDUH + ' | Diunduh ' + tanggalIndonesia(), 40, 58);
-                                doc.text(daftar.length + ' kegiatan' + (h.aktif ? ' (dari ' + h.total + ', sesuai filter)' : ''), 40, 71);
-                                doc.autoTable({
-                                                startY: 86,
-                                                head: [['No', 'Nama kegiatan', 'PIC', 'Angkas', 'Tanggal pelaksanaan', 'Peserta', 'Status', 'Sertifikat']],
-                                                body: baris,
-                                                theme: 'grid',
-                                                styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak', textColor: 30, valign: 'top' },
-                                                headStyles: { fillColor: [18, 59, 93], textColor: 255 },
-                                                columnStyles: { 0: { cellWidth: 24, halign: 'center' }, 1: { cellWidth: 190 }, 2: { cellWidth: 90 }, 3: { cellWidth: 70 },
-                                                                4: { cellWidth: 100 }, 5: { cellWidth: 170 }, 6: { cellWidth: 45, halign: 'center' }, 7: { cellWidth: 52, halign: 'center' } },
-                                                margin: { left: 40, right: 40, bottom: 40 },
-                                                didDrawPage: function() {
-                                                                doc.setFontSize(8);
-                                                                doc.setTextColor(120);
-                                                                doc.text('Halaman ' + doc.internal.getNumberOfPages(), 40, doc.internal.pageSize.getHeight() - 20);
+                                ambilSemuaDetailPdf(daftar, function(n) {
+                                                if (pulau) pulau.text('Menyiapkan PDF (' + n + ' dari ' + daftar.length + ')\u2026');
+                                }, function(detail) {
+                                                try {
+                                                                gambarPdfInformasi(daftar, detail, tahun, h);
+                                                                window.pdfInfoSibuk = false;
+                                                                if (pulau) pulau.finish('PDF diunduh', 'ok');
+                                                } catch (e) {
+                                                                console.error('[SIMAK] PDF Informasi:', e);
+                                                                gagal();
                                                 }
                                 });
-                                doc.save(namaFileUnduh('Informasi Kegiatan ' + tahun) + '.pdf');
-                }, function() {
-                                showToast('Pustaka PDF belum bisa dimuat. Periksa koneksi internet, lalu coba lagi.');
-                });
+                }, gagal);
 }
 
 /* Urutan kegiatan di menu Informasi: berdasarkan tanggal pelaksanaan (tanggal mulai), paling awal di atas.
